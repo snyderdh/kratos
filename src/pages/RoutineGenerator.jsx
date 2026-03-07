@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { generateSingleDayRoutine, getAlternativeExercises, getBlendConfig } from '../utils/routineGenerator';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
@@ -304,9 +305,10 @@ function ReplaceModal({ exerciseName, alternatives, onSelect, onClose }) {
 // ── Main component ────────────────────────────────────────────────────────
 export default function RoutineGenerator() {
   const { user } = useAuth();
-  const [goals, setGoals] = useState(['hypertrophy']);
+  const { state: navState } = useLocation();
+  const [goals, setGoals] = useState(navState?.goals ?? ['hypertrophy']);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
-  const [muscleGroups, setMuscleGroups] = useState(['chest', 'back', 'legs', 'shoulders']);
+  const [muscleGroups, setMuscleGroups] = useState(navState?.muscleGroups ?? ['chest', 'back', 'legs', 'shoulders']);
   const [exerciseCount, setExerciseCount] = useState('recommended');
   const [routine, setRoutine] = useState(null);
   const [error, setError] = useState('');

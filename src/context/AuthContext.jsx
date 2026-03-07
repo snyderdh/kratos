@@ -5,12 +5,19 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  async function fetchProfile(userId) {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    setProfile(data ?? null);
+  }
 
   useEffect(() => {
     // Load existing session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user?.id) fetchProfile(session.user.id);
       setLoading(false);
     });
 
@@ -36,6 +43,11 @@ export function AuthProvider({ children }) {
               localStorage.removeItem('kratos-pending-profile');
             }
           }
+          fetchProfile(session.user.id);
+        }
+
+        if (event === 'SIGNED_OUT') {
+          setProfile(null);
         }
       }
     );
@@ -47,8 +59,13 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
   }
 
+  function refreshProfile() {
+    const userId = session?.user?.id;
+    if (userId) return fetchProfile(userId);
+  }
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

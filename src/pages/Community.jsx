@@ -113,7 +113,7 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
 
   const exercises = Array.isArray(routine.exercises) ? routine.exercises : [];
   const muscleGroups = [...new Set(exercises.map((ex) => ex.muscleGroup).filter(Boolean))];
-  const username = routine.profiles?.username || 'unknown';
+  const username = routine.profiles?.name?.split(' ')[0] || (routine.profiles?.username ? `@${routine.profiles.username}` : 'Unknown');
   const goalLabel = routine.title?.split(' ')[0] || 'Workout';
 
   async function openComments() {
@@ -122,7 +122,7 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
     if (opening && comments === null) {
       const { data } = await supabase
         .from('comments')
-        .select('*, profiles(username)')
+        .select('*, profiles(username, name)')
         .eq('routine_id', routine.id)
         .order('created_at', { ascending: true });
       setComments(data ?? []);
@@ -180,7 +180,7 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
         <Avatar username={username} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>@{username}</span>
+            <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>{username}</span>
             <span style={{ padding: '1px 8px', borderRadius: '20px', backgroundColor: '#fff5f0', color: orange, fontWeight: 700, fontSize: '0.68rem', border: `1px solid ${orange}` }}>
               {goalLabel}
             </span>
@@ -275,7 +275,7 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
                   <Avatar username={c.profiles?.username} size={28} />
                   <div style={{ flex: 1, backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.78rem', color: '#374151' }}>@{c.profiles?.username || 'unknown'}</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.78rem', color: '#374151' }}>{c.profiles?.name?.split(' ')[0] || (c.profiles?.username ? `@${c.profiles.username}` : 'Unknown')}</span>
                       <span style={{ fontSize: '0.68rem', color: '#9ca3af' }}>{timeAgo(c.created_at)}</span>
                     </div>
                     <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.45, margin: 0 }}>{c.content}</p>

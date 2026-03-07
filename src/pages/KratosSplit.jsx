@@ -254,11 +254,14 @@ export default function KratosSplit() {
       weeks.push({ weekNumber: wk + 1, phase: phaseName, days });
     }
 
+    const resolvedGoal = goalEmphasis || 'general_fitness';
+
     const { error: dbErr } = await supabase.from('cycles').insert({
       user_id:              user.id,
       title,
       split:                'kratos_split',
-      goals:                [goalEmphasis],
+      goal:                 resolvedGoal,
+      goals:                [resolvedGoal],
       equipment,
       weeks,
       is_public:            false,

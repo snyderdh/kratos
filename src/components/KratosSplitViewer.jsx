@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { C, FONTS } from '../theme';
 
 // ── Brand / phase constants ────────────────────────────────────────────
@@ -102,8 +102,9 @@ function ProgressBar({ cycle, completedDays }) {
 }
 
 // ── Calendar grid ──────────────────────────────────────────────────────
-function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileWeek, isMobile }) {
-  const weeksToRender = isMobile ? [{ week: cycle.weeks[mobileWeek], weekIdx: mobileWeek }]
+function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileWeek, isMobile, currentWeekIdx, isInRange, weekRowRefs, onJumpToToday }) {
+  const weeksToRender = isMobile
+    ? [{ week: cycle.weeks[mobileWeek], weekIdx: mobileWeek }]
     : cycle.weeks.map((w, i) => ({ week: w, weekIdx: i }));
 
   return (
@@ -136,9 +137,18 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
 
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: isMobile ? 'unset' : '620px' }}>
-          {/* Day header row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', gap: '3px', marginBottom: '4px' }}>
-            <div />
+          {/* Day header row + Jump to Today button */}
+          <div style={{ display: 'grid', gridTemplateColumns: '68px repeat(7, 1fr)', gap: '3px', marginBottom: '4px', alignItems: 'center' }}>
+            {/* Jump to Today in the label column */}
+            {isInRange && !isMobile ? (
+              <button
+                onClick={onJumpToToday}
+                title="Jump to current week"
+                style={{ padding: '0.2rem 0.3rem', borderRadius: '6px', border: `1px solid ${TERRA}`, backgroundColor: 'transparent', color: TERRA, fontSize: '0.52rem', fontWeight: 500, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: FONTS.body, lineHeight: 1.3, textAlign: 'center' }}
+              >
+                ↓ Today
+              </button>
+            ) : <div />}
             {WEEKDAYS.map((d) => (
               <div key={d} style={{ textAlign: 'center', fontSize: '0.62rem', fontWeight: 400, color: C.textSecondary, padding: '2px 0' }}>{d}</div>
             ))}
@@ -146,24 +156,83 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
 
           {/* Week rows */}
           {weeksToRender.map(({ week, weekIdx }) => {
-            const pm = PHASE_META[week.phase] ?? PHASE_META.foundation;
-            const isDeload = week.phase === 'deload';
+            const pm             = PHASE_META[week.phase] ?? PHASE_META.foundation;
+            const isDeload       = week.phase === 'deload';
+            const isCurrentWeek  = weekIdx === currentWeekIdx && isInRange;
+
+            // Per-week progress
+            const weekSessions   = week.days.filter((d) => d.type !== 'rest').length;
+            const weekCompleted  = week.days.filter((d, di) =>
+              d.type !== 'rest' && !!completedDays[`${weekIdx}:${di}`]
+            ).length;
+            const weekAllDone    = weekCompleted === weekSessions && weekSessions > 0;
+            const weekPct        = weekSessions > 0 ? Math.round((weekCompleted / weekSessions) * 100) : 0;
+
+            const labelColor     = isCurrentWeek ? TERRA : pm.color;
+            const labelBg        = isCurrentWeek ? '#F5EDE6' : pm.bg;
+            const labelBorder    = isCurrentWeek ? TERRA : pm.color;
+
             return (
-              <div key={week.weekNumber} style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', gap: '3px', marginBottom: '3px' }}>
+              <div
+                key={week.weekNumber}
+                ref={(el) => { if (weekRowRefs) weekRowRefs.current[weekIdx] = el; }}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '68px repeat(7, 1fr)',
+                  gap: '3px',
+                  marginBottom: '3px',
+                  borderRadius: isCurrentWeek ? '8px' : '0',
+                  outline: isCurrentWeek ? `1.5px solid ${TERRA}30` : 'none',
+                  backgroundColor: isCurrentWeek ? `${TERRA}06` : 'transparent',
+                  padding: isCurrentWeek ? '2px' : '0',
+                }}
+              >
                 {/* Week label */}
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '3px 5px', backgroundColor: pm.bg, borderRadius: '6px', borderLeft: `3px solid ${pm.color}` }}>
-                  <div style={{ fontSize: '0.62rem', fontWeight: 500, color: pm.color, lineHeight: 1.2 }}>W{week.weekNumber}</div>
-                  <div style={{ fontSize: '0.54rem', color: pm.color, opacity: 0.75, lineHeight: 1.2 }}>{pm.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '3px', padding: '4px 5px', backgroundColor: labelBg, borderRadius: '6px', borderLeft: `3px solid ${labelBorder}` }}>
+                  {/* Week number + THIS WEEK badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.62rem', fontWeight: isCurrentWeek ? 700 : 500, color: labelColor, lineHeight: 1 }}>
+                      W{week.weekNumber}
+                    </span>
+                    {isCurrentWeek && (
+                      <span style={{ fontSize: '0.42rem', fontWeight: 700, color: '#fff', backgroundColor: TERRA, padding: '0.08rem 0.28rem', borderRadius: '2px', lineHeight: 1.5, letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>
+                        NOW
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Phase label (hidden for current week to save space) */}
+                  {!isCurrentWeek && (
+                    <div style={{ fontSize: '0.5rem', color: pm.color, opacity: 0.75, lineHeight: 1 }}>{pm.label}</div>
+                  )}
+
+                  {/* Mini progress bar */}
+                  {weekAllDone ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ color: '#fff', fontSize: '7px', fontWeight: 700, lineHeight: 1 }}>✓</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ height: '3px', backgroundColor: isCurrentWeek ? `${TERRA}30` : `${pm.color}25`, borderRadius: '2px', overflow: 'hidden', marginBottom: '2px' }}>
+                        <div style={{ height: '100%', width: `${weekPct}%`, backgroundColor: weekPct > 0 ? TERRA : 'transparent', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+                      </div>
+                      <div style={{ fontSize: '0.45rem', color: weekCompleted > 0 ? labelColor : C.textSecondary, fontWeight: weekCompleted > 0 ? 500 : 300, lineHeight: 1 }}>
+                        {weekCompleted}/{weekSessions}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Day cells */}
                 {week.days.map((day, dayIdx) => {
-                  const dKey = `${weekIdx}:${dayIdx}`;
+                  const dKey      = `${weekIdx}:${dayIdx}`;
                   const isCompleted = !!completedDays[dKey];
-                  const meta = DAY_META[day.type] ?? DAY_META.rest;
-                  const isRest = day.type === 'rest';
+                  const meta      = DAY_META[day.type] ?? DAY_META.rest;
+                  const isRest    = day.type === 'rest';
                   const isRecover = day.type === 'recover';
-                  const isLift = ['push', 'pull', 'legs'].includes(day.type);
+                  const isLift    = ['push', 'pull', 'legs'].includes(day.type);
 
                   return (
                     <button
@@ -186,6 +255,7 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
                         justifyContent: 'center',
                         gap: '2px',
                         overflow: 'hidden',
+                        boxShadow: isCurrentWeek ? '0 2px 8px rgba(194,98,42,0.14)' : 'none',
                       }}
                       onMouseOver={(e) => { e.currentTarget.style.borderColor = isRest ? C.accent + '50' : meta.color; }}
                       onMouseOut={(e) => { e.currentTarget.style.borderColor = isRest ? C.border : (isCompleted ? '#86efac' : meta.color + '38'); }}
@@ -624,6 +694,7 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
 export default function KratosSplitViewer({ cycle }) {
   const storageKey  = `kratos_complete_${cycle.id}`;
   const isMobile    = useIsMobile();
+  const weekRowRefs = useRef({});
 
   const [completedDays, setCompletedDays] = useState(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '{}'); }
@@ -633,6 +704,20 @@ export default function KratosSplitViewer({ cycle }) {
   const [modalWeekIdx, setModalWeekIdx] = useState(null);
   const [modalDayIdx,  setModalDayIdx]  = useState(null);
   const [mobileWeek,   setMobileWeek]   = useState(0);
+
+  // ── Current week detection (real-date based) ───────────────────────
+  const cycleStart    = cycle.created_at ? new Date(cycle.created_at) : null;
+  const today         = new Date();
+  const daysSinceStart = cycleStart
+    ? Math.floor((today - cycleStart) / (1000 * 60 * 60 * 24))
+    : -1;
+  const currentWeekIdx = daysSinceStart >= 0 ? Math.floor(daysSinceStart / 7) : -1;
+  const isInRange      = currentWeekIdx >= 0 && currentWeekIdx < cycle.weeks.length;
+
+  function scrollToCurrentWeek() {
+    if (!isInRange) return;
+    weekRowRefs.current[currentWeekIdx]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   function handleDayClick(weekIdx, dayIdx) {
     setModalWeekIdx(weekIdx);
@@ -665,6 +750,10 @@ export default function KratosSplitViewer({ cycle }) {
         mobileWeek={mobileWeek}
         setMobileWeek={setMobileWeek}
         isMobile={isMobile}
+        currentWeekIdx={currentWeekIdx}
+        isInRange={isInRange}
+        weekRowRefs={weekRowRefs}
+        onJumpToToday={scrollToCurrentWeek}
       />
       {modalWeekIdx !== null && (
         <DayModal

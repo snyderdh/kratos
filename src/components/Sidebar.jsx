@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   Home, Dumbbell, Calendar, BookOpen,
-  Bookmark, Archive, Users, Trophy, Menu, X, UserCircle,
+  Bookmark, Archive, Users, Trophy, Menu, X, UserCircle, Zap,
 } from 'lucide-react';
 import { C, FONTS } from '../theme';
 
@@ -20,6 +20,8 @@ const navLinks = [
   { to: '/athletes',    label: 'Athletes',           icon: Trophy },
   { to: '/profile',     label: 'Profile',            icon: UserCircle },
 ];
+
+const TERRA = '#C2622A';
 
 function NavItem({ to, label, icon: Icon, end, onClick }) {
   return (
@@ -66,7 +68,35 @@ function SidebarContent({ onClose }) {
 
       {/* Nav links */}
       <nav style={{ flex: 1, padding: '0 0.625rem', overflowY: 'auto' }}>
-        {navLinks.map((link) => (
+        <NavItem to="/" label="Home" icon={Home} end onClick={onClose} />
+
+        {/* Kratos Split — featured item */}
+        <NavLink
+          to="/kratos-split"
+          onClick={onClose}
+          className={({ isActive }) => ['sidebar-nav-item', isActive ? 'sidebar-nav-item--active' : ''].join(' ')}
+          style={({ isActive }) => ({
+            backgroundColor: isActive ? '#F5EDE6' : 'rgba(194,98,42,0.06)',
+            border: `1px solid ${isActive ? TERRA : 'rgba(194,98,42,0.25)'}`,
+          })}
+        >
+          {({ isActive }) => (
+            <>
+              <Zap size={17} strokeWidth={isActive ? 2 : 1.75} color={TERRA} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, color: TERRA, fontWeight: 400 }}>Kratos Split</span>
+              <span style={{
+                fontSize: '0.6rem', fontWeight: 500, color: '#fff',
+                backgroundColor: TERRA, borderRadius: '999px',
+                padding: '0.1rem 0.4rem', letterSpacing: '0.05em',
+                textTransform: 'uppercase', lineHeight: 1.4,
+              }}>
+                NEW
+              </span>
+            </>
+          )}
+        </NavLink>
+
+        {navLinks.slice(1).map((link) => (
           <NavItem key={link.to} {...link} onClick={onClose} />
         ))}
       </nav>

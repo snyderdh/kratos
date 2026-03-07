@@ -13,6 +13,7 @@ import SavedCycles from './pages/SavedCycles';
 import Community from './pages/Community';
 import Athletes from './pages/Athletes';
 import Profile from './pages/Profile';
+import KratosSplit from './pages/KratosSplit';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 
@@ -47,6 +48,7 @@ export default function App() {
                       <Route path="/cycle" element={<CycleGenerator />} />
                       <Route path="/saved-cycles" element={<SavedCycles />} />
                       <Route path="/profile" element={<Profile />} />
+                      <Route path="/kratos-split" element={<KratosSplit />} />
                     </Routes>
                   </main>
                 </div>

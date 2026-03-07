@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { generateCycle, regenerateSingleDay, SPLITS } from '../utils/cycleGenerator';
 import CycleViewer from '../components/CycleViewer';
 import { supabase } from '../supabase';
@@ -54,6 +55,7 @@ function pill(active) {
 
 export default function CycleGenerator() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [cycleLength, setCycleLength] = useState(8);
   const [split, setSplit] = useState('ppl');
@@ -143,6 +145,55 @@ export default function CycleGenerator() {
       <p style={{ color: C.textSecondary, marginBottom: '2rem', fontSize: '0.9rem', fontWeight: 300 }}>
         Build a structured multi-week training block with progressive overload built in.
       </p>
+
+      {/* Kratos Split featured preset */}
+      <div
+        onClick={() => navigate('/kratos-split')}
+        style={{
+          background: 'linear-gradient(135deg, #1A0F06 0%, #2A1505 100%)',
+          borderRadius: '12px', padding: '1.375rem 1.5rem',
+          marginBottom: '1.5rem', cursor: 'pointer',
+          border: '1px solid rgba(194,98,42,0.3)',
+          position: 'relative', overflow: 'hidden',
+          transition: 'border-color 0.2s',
+        }}
+        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'rgba(194,98,42,0.6)'; }}
+        onMouseOut={(e)  => { e.currentTarget.style.borderColor = 'rgba(194,98,42,0.3)'; }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter') navigate('/kratos-split'); }}
+      >
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: 'radial-gradient(ellipse at 85% 50%, rgba(194,98,42,0.1) 0%, transparent 60%)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+              backgroundColor: 'rgba(194,98,42,0.2)', border: '1px solid rgba(194,98,42,0.35)',
+              borderRadius: '999px', padding: '0.2rem 0.7rem', marginBottom: '0.625rem',
+            }}>
+              <span style={{ fontSize: '0.65rem', color: '#C2622A', fontWeight: 400, letterSpacing: '0.09em', textTransform: 'uppercase' }}>Featured System · New</span>
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#F5EDE6', fontFamily: FONTS.heading, fontStyle: 'italic', marginBottom: '0.25rem' }}>
+              The Kratos Split
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'rgba(245,237,230,0.55)', fontWeight: 300 }}>
+              Push · Recover · Pull · Recover · Legs · Recover · Rest — 12 weeks periodized
+            </div>
+          </div>
+          <div style={{
+            padding: '0.55rem 1.125rem', borderRadius: '8px',
+            backgroundColor: '#C2622A', color: '#fff',
+            fontSize: '0.82rem', fontWeight: 400, whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}>
+            Explore →
+          </div>
+        </div>
+      </div>
 
       {/* Form card */}
       <div style={{ ...card, padding: '1.5rem', marginBottom: '1.5rem' }}>

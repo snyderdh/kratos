@@ -3,8 +3,7 @@ import { generateCycle, regenerateSingleDay, SPLITS } from '../utils/cycleGenera
 import CycleViewer from '../components/CycleViewer';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
-
-const orange = '#FF6B2B';
+import { C, FONTS, card, btnPrimary, inputBase, labelBase } from '../theme';
 
 const GOALS = [
   { value: 'strength',    label: 'Strength',    desc: '5×3-5 · Heavy' },
@@ -41,14 +40,15 @@ function pill(active) {
   return {
     padding: '0.4rem 0.875rem',
     borderRadius: '999px',
-    border: '1.5px solid',
-    borderColor: active ? orange : '#e5e7eb',
-    backgroundColor: active ? '#fff7ed' : '#fff',
-    color: active ? orange : '#374151',
-    fontWeight: 600,
+    border: '1px solid',
+    borderColor: active ? C.accent : C.border,
+    backgroundColor: active ? C.accentMuted : 'transparent',
+    color: active ? C.accent : C.textSecondary,
+    fontWeight: active ? 400 : 300,
     fontSize: '0.875rem',
     cursor: 'pointer',
     transition: 'all 0.15s',
+    fontFamily: FONTS.body,
   };
 }
 
@@ -67,7 +67,6 @@ export default function CycleGenerator() {
   const [sharePublic, setSharePublic] = useState(false);
   const [error, setError] = useState('');
 
-  // Sync default days when split changes
   useEffect(() => {
     setDaysPerWeek(SPLITS[split]?.defaultDays ?? 3);
   }, [split]);
@@ -143,32 +142,32 @@ export default function CycleGenerator() {
 
   return (
     <div style={{ maxWidth: '820px', margin: '0 auto', padding: '2rem 1rem' }}>
-      <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#111827', marginBottom: '0.25rem' }}>Cycle Generator</h1>
-      <p style={{ color: '#6b7280', marginBottom: '2rem', fontSize: '0.9rem' }}>
+      <h1 style={{ fontSize: '1.8rem', fontWeight: 500, color: C.text, marginBottom: '0.25rem', fontFamily: FONTS.heading }}>Cycle Generator</h1>
+      <p style={{ color: C.textSecondary, marginBottom: '2rem', fontSize: '0.9rem', fontWeight: 300 }}>
         Build a structured multi-week training block with progressive overload built in.
       </p>
 
       {/* Form card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: '1.5rem' }}>
+      <div style={{ ...card, padding: '1.5rem', marginBottom: '1.5rem' }}>
 
         {/* Title */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Cycle Title</label>
+          <label style={labelBase}>Cycle Title</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Summer Strength Block"
             maxLength={60}
-            style={{ width: '100%', padding: '0.6rem 0.875rem', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '0.9rem', color: '#111827', outline: 'none', boxSizing: 'border-box' }}
-            onFocus={(e) => (e.target.style.borderColor = orange)}
-            onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+            style={inputBase}
+            onFocus={(e) => (e.target.style.borderColor = C.accent)}
+            onBlur={(e) => (e.target.style.borderColor = C.border)}
           />
         </div>
 
         {/* Cycle length */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Cycle Length</label>
+          <label style={labelBase}>Cycle Length</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {CYCLE_LENGTHS.map((wk) => (
               <button key={wk} onClick={() => setCycleLength(wk)} style={pill(cycleLength === wk)}>
@@ -180,7 +179,7 @@ export default function CycleGenerator() {
 
         {/* Training split */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Training Split</label>
+          <label style={labelBase}>Training Split</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: '0.625rem' }}>
             {SPLIT_ORDER.map((s) => {
               const sp = SPLITS[s];
@@ -189,20 +188,20 @@ export default function CycleGenerator() {
                 <button
                   key={s}
                   onClick={() => setSplit(s)}
-                  style={{ padding: '0.75rem', borderRadius: '8px', border: '2px solid', borderColor: active ? orange : '#e5e7eb', backgroundColor: active ? '#fff7ed' : '#fff', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
+                  style={{ ...card, padding: '0.75rem', border: `1px solid ${active ? C.accent : C.border}`, backgroundColor: active ? C.accentMuted : C.surface, textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
                 >
-                  <div style={{ fontWeight: 700, color: active ? orange : '#111827', fontSize: '0.875rem', marginBottom: '0.25rem' }}>{sp.label}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#6b7280', lineHeight: 1.4 }}>{sp.description}</div>
+                  <div style={{ fontWeight: 400, color: active ? C.accent : C.text, fontSize: '0.875rem', marginBottom: '0.25rem' }}>{sp.label}</div>
+                  <div style={{ fontSize: '0.72rem', color: C.textSecondary, lineHeight: 1.4, fontWeight: 300 }}>{sp.description}</div>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Days per week — only shown for splits with multiple options */}
+        {/* Days per week */}
         {SPLITS[split]?.daysOptions?.length > 1 && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Days per Week</label>
+            <label style={labelBase}>Days per Week</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {SPLITS[split].daysOptions.map((d) => (
                 <button key={d} onClick={() => setDaysPerWeek(d)} style={pill(daysPerWeek === d)}>
@@ -215,8 +214,8 @@ export default function CycleGenerator() {
 
         {/* Session length */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Default Session Length</label>
-          <p style={{ color: '#6b7280', fontSize: '0.78rem', marginBottom: '0.5rem', marginTop: 0 }}>Sets the exercise count per session. You can override per day after generating.</p>
+          <label style={labelBase}>Default Session Length</label>
+          <p style={{ color: C.textSecondary, fontSize: '0.78rem', marginBottom: '0.5rem', marginTop: 0, fontWeight: 300 }}>Sets the exercise count per session. You can override per day after generating.</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {SESSION_LIMITS.map(({ value, label }) => (
               <button key={String(value)} onClick={() => setSessionMins(value)} style={pill(sessionMins === value)}>
@@ -228,7 +227,7 @@ export default function CycleGenerator() {
 
         {/* Goals */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Training Goals</label>
+          <label style={labelBase}>Training Goals</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {GOALS.map((g) => (
               <button key={g.value} onClick={() => toggleGoal(g.value)} style={pill(goals.includes(g.value))}>
@@ -240,7 +239,7 @@ export default function CycleGenerator() {
 
         {/* Equipment */}
         <div style={{ marginBottom: '1.75rem' }}>
-          <label style={{ display: 'block', fontWeight: 700, color: '#111827', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Available Equipment</label>
+          <label style={labelBase}>Available Equipment</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             <button onClick={() => toggleEquipment('all')} style={pill(equipment.length === ALL_EQUIPMENT.length)}>All</button>
             {EQUIPMENT.map((eq) => (
@@ -251,13 +250,13 @@ export default function CycleGenerator() {
           </div>
         </div>
 
-        {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
+        {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '0.75rem', fontWeight: 300 }}>{error}</p>}
 
         <button
           onClick={handleGenerate}
-          style={{ width: '100%', padding: '0.875rem', backgroundColor: orange, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', transition: 'background-color 0.15s' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e55a1f')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = orange)}
+          style={{ ...btnPrimary, width: '100%', padding: '0.875rem', fontSize: '1rem' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = C.accentHover)}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = C.accent)}
         >
           Generate Cycle
         </button>
@@ -265,23 +264,23 @@ export default function CycleGenerator() {
 
       {/* Output */}
       {cycle && (
-        <div id="cycle-output" style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div id="cycle-output" style={{ ...card, padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#111827', margin: 0 }}>{cycle.title}</h2>
-              <p style={{ color: '#6b7280', fontSize: '0.82rem', margin: '0.2rem 0 0' }}>Click any training day to view exercises or adjust its session length</p>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 500, color: C.text, margin: 0, fontFamily: FONTS.heading }}>{cycle.title}</h2>
+              <p style={{ color: C.textSecondary, fontSize: '0.82rem', margin: '0.2rem 0 0', fontWeight: 300 }}>Click any training day to view exercises or adjust its session length</p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 onClick={handleGenerate}
-                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1.5px solid ${orange}`, backgroundColor: 'transparent', color: orange, fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${C.accent}`, backgroundColor: 'transparent', color: C.accent, fontWeight: 400, fontSize: '0.82rem', cursor: 'pointer' }}
               >
                 Regenerate
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', backgroundColor: saveSuccess ? '#16a34a' : orange, color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'background-color 0.2s', whiteSpace: 'nowrap' }}
+                style={{ ...btnPrimary, padding: '0.5rem 1rem', backgroundColor: saveSuccess ? '#5A9E6F' : C.accent, fontSize: '0.82rem', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, whiteSpace: 'nowrap' }}
               >
                 {saving ? 'Saving…' : saveSuccess ? 'Saved!' : 'Save Cycle'}
               </button>
@@ -292,11 +291,11 @@ export default function CycleGenerator() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
             <button
               onClick={() => setSharePublic((v) => !v)}
-              style={{ width: '36px', height: '20px', borderRadius: '999px', border: 'none', backgroundColor: sharePublic ? orange : '#d1d5db', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s', flexShrink: 0 }}
+              style={{ width: '36px', height: '20px', borderRadius: '999px', border: 'none', backgroundColor: sharePublic ? C.accent : C.border, position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s', flexShrink: 0 }}
             >
               <span style={{ position: 'absolute', top: '2px', left: sharePublic ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.2s' }} />
             </button>
-            <span style={{ fontSize: '0.84rem', color: '#374151', fontWeight: 600 }}>Share to Community feed</span>
+            <span style={{ fontSize: '0.84rem', color: C.text, fontWeight: 300 }}>Share to Community feed</span>
           </div>
 
           <CycleViewer cycle={cycle} onRegenerateDay={handleRegenerateDay} />

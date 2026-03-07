@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
-
-const orange = '#FF6B2B';
+import { C, FONTS, card, btnPrimary, btnSecondary, inputBase, labelBase, tagBase } from '../theme';
 
 const FITNESS_GOALS = [
   { value: 'strength', label: 'Strength' },
@@ -29,7 +28,6 @@ export default function Profile() {
   const [error, setError] = useState('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // Pre-fill from profile when it loads
   useEffect(() => {
     if (!profile) return;
     const nameParts = (profile.name || '').split(' ');
@@ -109,18 +107,18 @@ export default function Profile() {
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#111827', marginBottom: '0.25rem' }}>
+      <h1 style={{ fontSize: '1.75rem', fontWeight: 500, color: C.text, marginBottom: '0.25rem', fontFamily: FONTS.heading }}>
         Profile
       </h1>
-      <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '2rem' }}>
+      <p style={{ color: C.textSecondary, fontSize: '0.875rem', marginBottom: '2rem', fontWeight: 300 }}>
         Manage your personal information and fitness goals.
       </p>
 
       {saveSuccess && (
         <div style={{
-          backgroundColor: '#f0fdf4', border: '1.5px solid #86efac',
+          backgroundColor: C.accentMuted, border: `1px solid ${C.accent}50`,
           borderRadius: '8px', padding: '0.75rem 1rem',
-          color: '#16a34a', fontSize: '0.875rem', fontWeight: 600,
+          color: C.accent, fontSize: '0.875rem', fontWeight: 400,
           marginBottom: '1.5rem',
         }}>
           Profile saved successfully!
@@ -129,9 +127,9 @@ export default function Profile() {
 
       {error && (
         <div style={{
-          backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5',
+          backgroundColor: C.accentMuted, border: `1px solid ${C.accent}50`,
           borderRadius: '8px', padding: '0.75rem 1rem',
-          color: '#dc2626', fontSize: '0.875rem', fontWeight: 600,
+          color: C.accent, fontSize: '0.875rem', fontWeight: 400,
           marginBottom: '1.5rem',
         }}>
           {error}
@@ -148,15 +146,15 @@ export default function Profile() {
             <img
               src={avatarUrl}
               alt="Avatar"
-              style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #e5e7eb' }}
+              style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${C.border}` }}
             />
           ) : (
             <div style={{
               width: '72px', height: '72px', borderRadius: '50%',
-              background: `linear-gradient(135deg, ${orange}, #ff9258)`,
+              backgroundColor: C.accent,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '1.5rem', fontWeight: 800, color: '#fff',
-              border: '3px solid #e5e7eb',
+              fontSize: '1.5rem', fontWeight: 400, color: '#fff',
+              border: `2px solid ${C.border}`,
             }}>
               {initials}
             </div>
@@ -171,25 +169,25 @@ export default function Profile() {
             onMouseEnter={(e) => { if (!uploadingAvatar) e.currentTarget.style.opacity = '1'; }}
             onMouseLeave={(e) => { if (!uploadingAvatar) e.currentTarget.style.opacity = '0'; }}
           >
-            <span style={{ color: '#fff', fontSize: '0.7rem', fontWeight: 700 }}>
+            <span style={{ color: '#fff', fontSize: '0.7rem', fontWeight: 400 }}>
               {uploadingAvatar ? 'Uploading…' : 'Change'}
             </span>
           </div>
         </div>
         <div>
-          <div style={{ fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
+          <div style={{ fontWeight: 400, color: C.text, marginBottom: '0.25rem' }}>
             {displayName || 'Your Name'}
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.8rem', color: C.textSecondary, marginBottom: '0.5rem', fontWeight: 300 }}>
             {user?.email}
           </div>
           <button
             onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
             disabled={uploadingAvatar}
             style={{
-              fontSize: '0.78rem', fontWeight: 600, color: orange,
-              background: 'none', border: `1.5px solid ${orange}`,
-              borderRadius: '6px', padding: '0.3rem 0.75rem',
+              ...btnSecondary,
+              padding: '0.3rem 0.75rem',
+              fontSize: '0.78rem',
               cursor: uploadingAvatar ? 'default' : 'pointer',
               opacity: uploadingAvatar ? 0.5 : 1,
             }}
@@ -207,62 +205,62 @@ export default function Profile() {
       </div>
 
       {/* Form card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ ...card, padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
         {/* Name row */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div>
-            <label style={labelStyle}>First name</label>
+            <label style={labelBase}>First name</label>
             <input
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="First name"
-              style={inputStyle}
-              onFocus={(e) => (e.target.style.borderColor = orange)}
-              onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+              style={inputBase}
+              onFocus={(e) => (e.target.style.borderColor = C.accent)}
+              onBlur={(e) => (e.target.style.borderColor = C.border)}
             />
           </div>
           <div>
-            <label style={labelStyle}>Last name</label>
+            <label style={labelBase}>Last name</label>
             <input
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="Last name"
-              style={inputStyle}
-              onFocus={(e) => (e.target.style.borderColor = orange)}
-              onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+              style={inputBase}
+              onFocus={(e) => (e.target.style.borderColor = C.accent)}
+              onBlur={(e) => (e.target.style.borderColor = C.border)}
             />
           </div>
         </div>
 
         {/* Username */}
         <div>
-          <label style={labelStyle}>Username</label>
+          <label style={labelBase}>Username</label>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="@username"
-            style={inputStyle}
-            onFocus={(e) => (e.target.style.borderColor = orange)}
-            onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+            style={inputBase}
+            onFocus={(e) => (e.target.style.borderColor = C.accent)}
+            onBlur={(e) => (e.target.style.borderColor = C.border)}
           />
         </div>
 
         {/* Email (read-only) */}
         <div>
-          <label style={labelStyle}>Email</label>
+          <label style={labelBase}>Email</label>
           <input
             value={user?.email || ''}
             readOnly
-            style={{ ...inputStyle, backgroundColor: '#f9fafb', color: '#9ca3af', cursor: 'not-allowed' }}
+            style={{ ...inputBase, color: C.textSecondary, cursor: 'not-allowed' }}
           />
         </div>
 
         {/* Bio */}
         <div>
-          <label style={labelStyle}>
+          <label style={labelBase}>
             Bio
-            <span style={{ color: '#9ca3af', fontWeight: 400, marginLeft: '0.5rem' }}>
+            <span style={{ color: C.textSecondary, fontWeight: 300, marginLeft: '0.5rem' }}>
               {bio.length}/160
             </span>
           </label>
@@ -272,33 +270,33 @@ export default function Profile() {
             placeholder="Tell the community a bit about yourself…"
             rows={3}
             style={{
-              ...inputStyle,
+              ...inputBase,
               resize: 'vertical',
               minHeight: '80px',
               fontFamily: 'inherit',
               lineHeight: 1.5,
             }}
-            onFocus={(e) => (e.target.style.borderColor = orange)}
-            onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+            onFocus={(e) => (e.target.style.borderColor = C.accent)}
+            onBlur={(e) => (e.target.style.borderColor = C.border)}
           />
         </div>
 
         {/* Gym */}
         <div>
-          <label style={labelStyle}>Gym</label>
+          <label style={labelBase}>Gym</label>
           <input
             value={gym}
             onChange={(e) => setGym(e.target.value)}
             placeholder="e.g. Lifetime Fitness, Gold's Gym…"
-            style={inputStyle}
-            onFocus={(e) => (e.target.style.borderColor = orange)}
-            onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+            style={inputBase}
+            onFocus={(e) => (e.target.style.borderColor = C.accent)}
+            onBlur={(e) => (e.target.style.borderColor = C.border)}
           />
         </div>
 
         {/* Fitness Goals */}
         <div>
-          <label style={labelStyle}>Fitness Goals</label>
+          <label style={labelBase}>Fitness Goals</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.375rem' }}>
             {FITNESS_GOALS.map(({ value, label }) => {
               const active = fitnessGoals.includes(value);
@@ -307,15 +305,16 @@ export default function Profile() {
                   key={value}
                   onClick={() => toggleGoal(value)}
                   style={{
+                    ...tagBase,
                     padding: '0.35rem 0.875rem',
                     borderRadius: '20px',
-                    border: `1.5px solid ${active ? orange : '#e5e7eb'}`,
-                    backgroundColor: active ? '#fff7ed' : '#fff',
-                    color: active ? orange : '#6b7280',
-                    fontSize: '0.8rem',
-                    fontWeight: active ? 700 : 500,
+                    border: `1px solid ${active ? C.accent : C.border}`,
+                    backgroundColor: active ? C.accentMuted : 'transparent',
+                    color: active ? C.accent : C.textSecondary,
+                    fontWeight: active ? 400 : 300,
                     cursor: 'pointer',
                     transition: 'all 0.13s',
+                    fontSize: '0.8rem',
                   }}
                 >
                   {label}
@@ -330,16 +329,11 @@ export default function Profile() {
           onClick={handleSave}
           disabled={saving}
           style={{
+            ...btnPrimary,
             padding: '0.65rem 1.5rem',
-            backgroundColor: saving ? '#fdba74' : orange,
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '0.9rem',
-            fontWeight: 700,
+            backgroundColor: saving ? '#d4896a' : C.accent,
             cursor: saving ? 'default' : 'pointer',
             alignSelf: 'flex-start',
-            transition: 'background-color 0.15s',
           }}
         >
           {saving ? 'Saving…' : 'Save Changes'}
@@ -348,26 +342,3 @@ export default function Profile() {
     </div>
   );
 }
-
-const labelStyle = {
-  display: 'block',
-  fontSize: '0.78rem',
-  fontWeight: 700,
-  color: '#374151',
-  marginBottom: '0.375rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle = {
-  width: '100%',
-  padding: '0.55rem 0.75rem',
-  border: '1.5px solid #e5e7eb',
-  borderRadius: '8px',
-  fontSize: '0.875rem',
-  color: '#111827',
-  outline: 'none',
-  transition: 'border-color 0.15s',
-  boxSizing: 'border-box',
-  backgroundColor: '#fff',
-};

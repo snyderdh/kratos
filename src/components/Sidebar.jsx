@@ -5,8 +5,8 @@ import {
   Home, Dumbbell, Calendar, BookOpen,
   Bookmark, Archive, Users, Trophy, Menu, X, UserCircle,
 } from 'lucide-react';
+import { C, FONTS } from '../theme';
 
-const orange = '#FF6B2B';
 export const SIDEBAR_WIDTH = 240;
 
 const navLinks = [
@@ -33,8 +33,8 @@ function NavItem({ to, label, icon: Icon, end, onClick }) {
         <>
           <Icon
             size={18}
-            strokeWidth={isActive ? 2.5 : 2}
-            color={isActive ? orange : '#6b7280'}
+            strokeWidth={isActive ? 2 : 1.5}
+            color={isActive ? C.accent : C.textSecondary}
             style={{ flexShrink: 0 }}
           />
           <span>{label}</span>
@@ -55,15 +55,14 @@ function SidebarContent({ onClose }) {
       {/* Logo */}
       <div style={{ padding: '1.375rem 1.25rem 1.125rem', flexShrink: 0 }}>
         <Link to="/" style={{ textDecoration: 'none', display: 'inline-block' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-            <span style={{ fontSize: '1.55rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.5px', fontStyle: 'italic', lineHeight: 1 }}>KRA</span>
-            <span style={{ fontSize: '1.55rem', fontWeight: 900, color: orange, letterSpacing: '-0.5px', fontStyle: 'italic', lineHeight: 1 }}>TOS</span>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontSize: '1.55rem', fontWeight: 500, color: C.text, letterSpacing: '-0.5px', fontStyle: 'italic', lineHeight: 1, fontFamily: FONTS.heading }}>KRATOS</span>
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#9ca3af', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '0.2rem' }}>Training Platform</div>
+          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '0.2rem', fontFamily: FONTS.body }}>Training Platform</div>
         </Link>
       </div>
 
-      <div style={{ height: '1px', backgroundColor: '#e5e7eb', margin: '0 1.25rem 0.875rem' }} />
+      <div style={{ height: '1px', backgroundColor: C.border, margin: '0 1.25rem 0.875rem' }} />
 
       {/* Nav links */}
       <nav style={{ flex: 1, padding: '0 0.625rem', overflowY: 'auto' }}>
@@ -73,7 +72,7 @@ function SidebarContent({ onClose }) {
       </nav>
 
       {/* User footer */}
-      <div style={{ padding: '0.875rem 0.875rem 1rem', borderTop: '1px solid #e5e7eb', flexShrink: 0 }}>
+      <div style={{ padding: '0.875rem 0.875rem 1rem', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.625rem' }}>
           {profile?.avatar_url ? (
             <img
@@ -84,29 +83,30 @@ function SidebarContent({ onClose }) {
           ) : (
             <div style={{
               width: '34px', height: '34px', borderRadius: '50%',
-              background: `linear-gradient(135deg, ${orange}, #ff9258)`,
+              backgroundColor: C.accent,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.875rem', fontWeight: 800, color: '#fff', flexShrink: 0,
+              fontSize: '0.875rem', fontWeight: 400, color: '#fff', flexShrink: 0,
             }}>
               {initial}
             </div>
           )}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
-            <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>Hey, {firstName}</div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 400, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+            <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>Hey, {firstName}</div>
           </div>
         </div>
         <button
           onClick={signOut}
           style={{
             width: '100%', padding: '0.4rem 0.75rem',
-            borderRadius: '6px', border: '1.5px solid #e5e7eb',
-            backgroundColor: 'transparent', color: '#6b7280',
-            fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+            borderRadius: '6px', border: `1px solid ${C.border}`,
+            backgroundColor: 'transparent', color: C.textSecondary,
+            fontSize: '0.78rem', fontWeight: 400, cursor: 'pointer',
             transition: 'all 0.15s', textAlign: 'center',
+            fontFamily: FONTS.body,
           }}
-          onMouseOver={(e) => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
-          onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+          onMouseOver={(e) => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
+          onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; }}
         >
           Sign out
         </button>
@@ -126,9 +126,8 @@ export default function Sidebar() {
         style={{
           position: 'fixed', top: 0, left: 0,
           width: `${SIDEBAR_WIDTH}px`, height: '100vh',
-          backgroundColor: '#ffffff',
-          borderRight: '1px solid #e5e7eb',
-          boxShadow: '2px 0 12px rgba(0,0,0,0.04)',
+          backgroundColor: C.surface,
+          borderRight: `1px solid ${C.border}`,
           zIndex: 100,
         }}
       >
@@ -145,12 +144,12 @@ export default function Sidebar() {
           zIndex: 200, display: 'none',
           alignItems: 'center', justifyContent: 'center',
           width: '40px', height: '40px',
-          backgroundColor: '#fff', border: '1px solid #e5e7eb',
+          backgroundColor: C.surface, border: `1px solid ${C.border}`,
           borderRadius: '8px', cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         }}
       >
-        <Menu size={20} color="#374151" />
+        <Menu size={20} color={C.text} />
       </button>
 
       {/* ── Mobile drawer ───────────────────────────────────────────── */}
@@ -164,9 +163,9 @@ export default function Sidebar() {
             style={{
               position: 'fixed', top: 0, left: 0,
               width: `${SIDEBAR_WIDTH}px`, height: '100vh',
-              backgroundColor: '#fff', zIndex: 200,
-              borderRight: '1px solid #e5e7eb',
-              boxShadow: '4px 0 24px rgba(0,0,0,0.14)',
+              backgroundColor: C.surface, zIndex: 200,
+              borderRight: `1px solid ${C.border}`,
+              boxShadow: '4px 0 24px rgba(0,0,0,0.10)',
             }}
           >
             <button
@@ -174,7 +173,7 @@ export default function Sidebar() {
               aria-label="Close menu"
               style={{ position: 'absolute', top: '1rem', right: '0.875rem', background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem' }}
             >
-              <X size={20} color="#6b7280" />
+              <X size={20} color={C.textSecondary} />
             </button>
             <SidebarContent onClose={() => setMobileOpen(false)} />
           </div>
@@ -189,23 +188,23 @@ export default function Sidebar() {
           padding: 0.575rem 0.75rem;
           border-radius: 8px;
           text-decoration: none;
-          color: #374151;
+          color: var(--text-secondary);
           font-size: 0.855rem;
-          font-weight: 500;
+          font-weight: 300;
           margin-bottom: 0.2rem;
           transition: background-color 0.13s, color 0.13s;
         }
         .sidebar-nav-item:hover {
-          background-color: #f9fafb;
-          color: #111827;
+          background-color: var(--bg);
+          color: var(--text);
         }
         .sidebar-nav-item--active {
-          background-color: #fff7ed !important;
-          color: ${orange} !important;
-          font-weight: 700;
+          background-color: var(--accent-muted) !important;
+          color: var(--accent) !important;
+          font-weight: 400;
         }
         .sidebar-nav-item--active:hover {
-          background-color: #fff3e0 !important;
+          background-color: var(--accent-muted) !important;
         }
 
         @media (max-width: 768px) {

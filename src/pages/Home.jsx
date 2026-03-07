@@ -5,8 +5,7 @@ import { supabase } from '../supabase';
 import {
   Dumbbell, Calendar, Flame, Bell, ChevronRight, X, Send, MessageSquare,
 } from 'lucide-react';
-
-const orange = '#FF6B2B';
+import { C, FONTS, card, btnPrimary, inputBase } from '../theme';
 
 const QUOTES = [
   "Strength doesn't come from what you can do. It comes from overcoming what you thought you couldn't.",
@@ -29,8 +28,8 @@ const ALL_GOALS = ['strength', 'hypertrophy', 'endurance', 'power'];
 
 const MUSCLE_LABELS = { chest: 'Chest', back: 'Back', legs: 'Legs', shoulders: 'Shoulders', arms: 'Arms', core: 'Core' };
 const GOAL_LABELS = { strength: 'Strength', hypertrophy: 'Hypertrophy', endurance: 'Endurance', power: 'Power' };
-const MUSCLE_COLORS = { chest: '#FF6B2B', back: '#2563eb', legs: '#16a34a', shoulders: '#9333ea', arms: '#0891b2', core: '#d97706' };
-const GOAL_COLORS = { strength: '#dc2626', hypertrophy: '#FF6B2B', endurance: '#16a34a', power: '#9333ea' };
+const MUSCLE_COLORS = { chest: C.accent, back: '#4A7FA5', legs: '#5A9E6F', shoulders: '#7C6FAF', arms: '#C4924A', core: '#4A9BAD' };
+const GOAL_COLORS = { strength: '#8B4040', hypertrophy: C.accent, endurance: '#5A9E6F', power: '#7C6FAF' };
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -152,7 +151,6 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
     async function load() {
-      // Most recent cycle
       const { data: cycles } = await supabase
         .from('cycles')
         .select('*')
@@ -161,14 +159,12 @@ export default function Home() {
         .limit(1);
       if (cycles?.length) setActiveCycle(cycles[0]);
 
-      // Cycle count
       const { count: cCount } = await supabase
         .from('cycles')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id);
       setCycleCount(cCount ?? 0);
 
-      // Likes received
       const { data: myRoutines } = await supabase
         .from('routines')
         .select('id')
@@ -182,7 +178,6 @@ export default function Home() {
         setLikesReceived(lCount ?? 0);
       }
 
-      // Announcements
       const { data: anns } = await supabase
         .from('announcements')
         .select('*')
@@ -251,18 +246,18 @@ export default function Home() {
       <div style={{ marginBottom: '1.75rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#111827', margin: '0 0 0.3rem' }}>
+            <h1 style={{ fontSize: '2.25rem', fontWeight: 500, color: C.text, margin: '0 0 0.3rem', fontFamily: FONTS.heading }}>
               {getGreeting()}, {name}.
             </h1>
-            <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: 0, maxWidth: '540px', lineHeight: 1.55, fontStyle: 'italic' }}>
+            <p style={{ color: C.textSecondary, fontSize: '0.875rem', margin: 0, maxWidth: '540px', lineHeight: 1.55, fontStyle: 'italic', fontWeight: 300 }}>
               "{getDailyQuote()}"
             </p>
           </div>
           {streak > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: '10px', padding: '0.6rem 1rem', flexShrink: 0 }}>
-              <Flame size={18} color={orange} />
-              <span style={{ fontWeight: 900, color: orange, fontSize: '1.1rem', lineHeight: 1 }}>{streak}</span>
-              <span style={{ color: '#9a3412', fontSize: '0.8rem', fontWeight: 600 }}>day streak</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: C.accentMuted, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '0.6rem 1rem', flexShrink: 0 }}>
+              <Flame size={18} color={C.accent} />
+              <span style={{ fontWeight: 500, color: C.accent, fontSize: '1.1rem', lineHeight: 1, fontFamily: FONTS.heading }}>{streak}</span>
+              <span style={{ color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300 }}>day streak</span>
             </div>
           )}
         </div>
@@ -271,17 +266,17 @@ export default function Home() {
       {/* ── Quick Stats ─────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.5rem' }}>
         {[
-          { label: 'Routines Saved', value: routines.length, color: orange, to: '/saved' },
-          { label: 'Cycles Saved', value: cycleCount, color: '#2563eb', to: '/saved-cycles' },
-          { label: 'Likes Received', value: likesReceived, color: '#16a34a', to: '/community' },
+          { label: 'Routines Saved', value: routines.length, color: C.accent, to: '/saved' },
+          { label: 'Cycles Saved', value: cycleCount, color: '#4A7FA5', to: '/saved-cycles' },
+          { label: 'Likes Received', value: likesReceived, color: '#5A9E6F', to: '/community' },
         ].map(({ label, value, color, to }) => (
           <Link
             key={label}
             to={to}
-            style={{ textDecoration: 'none', backgroundColor: '#fff', borderRadius: '10px', padding: '0.875rem 1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb', textAlign: 'center' }}
+            style={{ textDecoration: 'none', ...card, padding: '0.875rem 1rem', textAlign: 'center' }}
           >
-            <div style={{ fontSize: '1.65rem', fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
-            <div style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 600, marginTop: '0.25rem' }}>{label}</div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 500, color, lineHeight: 1, fontFamily: FONTS.heading }}>{value}</div>
+            <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, marginTop: '0.25rem' }}>{label}</div>
           </Link>
         ))}
       </div>
@@ -290,57 +285,57 @@ export default function Home() {
       <div style={{ display: 'grid', gridTemplateColumns: activeCycle ? '1fr 1fr' : '1fr', gap: '1rem', marginBottom: '1.5rem' }}>
 
         {/* Today's Training */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e5e7eb' }}>
+        <div style={{ ...card, padding: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
-            <Dumbbell size={16} color={orange} />
-            <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.875rem' }}>Today's Training</span>
+            <Dumbbell size={16} color={C.accent} />
+            <span style={{ fontWeight: 400, color: C.text, fontSize: '0.875rem' }}>Today's Training</span>
           </div>
 
           {hasTrainingToday ? (
             <>
-              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#111827', marginBottom: '0.2rem' }}>
+              <div style={{ fontWeight: 500, fontSize: '1.05rem', color: C.text, marginBottom: '0.2rem', fontFamily: FONTS.heading }}>
                 {todayInfo.day.label || todayInfo.day.type}
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '0.875rem' }}>
+              <div style={{ fontSize: '0.78rem', color: C.textSecondary, marginBottom: '0.875rem', fontWeight: 300 }}>
                 {todayInfo.day.exercises?.length ?? 0} exercises
                 {todayInfo.day.sessionMins ? ` · ${todayInfo.day.sessionMins} min` : ''}
                 {' · '}Week {todayInfo.weekNum}
               </div>
               <Link
                 to="/saved-cycles"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: orange, color: '#fff', borderRadius: '7px', padding: '0.45rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 700 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: C.accent, color: '#fff', borderRadius: '7px', padding: '0.45rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 400 }}
               >
                 View Workout <ChevronRight size={14} />
               </Link>
             </>
           ) : isRestToday ? (
             <>
-              <div style={{ fontWeight: 700, fontSize: '1rem', color: '#374151', marginBottom: '0.2rem' }}>Rest Day</div>
-              <div style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '0.875rem' }}>
+              <div style={{ fontWeight: 400, fontSize: '1rem', color: C.text, marginBottom: '0.2rem' }}>Rest Day</div>
+              <div style={{ fontSize: '0.78rem', color: C.textSecondary, marginBottom: '0.875rem', fontWeight: 300 }}>
                 Recovery is part of the program. Stay hydrated and get good sleep.
               </div>
               <Link
                 to="/generate"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: `1.5px solid ${orange}`, color: orange, borderRadius: '7px', padding: '0.4rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 700, backgroundColor: 'transparent' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: `1px solid ${C.accent}`, color: C.accent, borderRadius: '7px', padding: '0.4rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 400, backgroundColor: 'transparent' }}
               >
                 Optional light session
               </Link>
             </>
           ) : (
             <>
-              <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.875rem', lineHeight: 1.55 }}>
+              <div style={{ fontSize: '0.82rem', color: C.textSecondary, marginBottom: '0.875rem', lineHeight: 1.55, fontWeight: 300 }}>
                 No active cycle running. Generate a quick routine or kick off a new training block.
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <Link
                   to="/generate"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: orange, color: '#fff', borderRadius: '7px', padding: '0.45rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 700 }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: C.accent, color: '#fff', borderRadius: '7px', padding: '0.45rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 400 }}
                 >
                   Quick Routine
                 </Link>
                 <Link
                   to="/cycle"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: `1.5px solid ${orange}`, color: orange, borderRadius: '7px', padding: '0.4rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 700, backgroundColor: 'transparent' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: `1px solid ${C.accent}`, color: C.accent, borderRadius: '7px', padding: '0.4rem 0.875rem', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 400, backgroundColor: 'transparent' }}
                 >
                   Start a Cycle
                 </Link>
@@ -351,43 +346,43 @@ export default function Home() {
 
         {/* Active Cycle Progress */}
         {activeCycle && (
-          <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e5e7eb' }}>
+          <div style={{ ...card, padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
-              <Calendar size={16} color="#2563eb" />
-              <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.875rem' }}>Active Cycle</span>
+              <Calendar size={16} color="#4A7FA5" />
+              <span style={{ fontWeight: 400, color: C.text, fontSize: '0.875rem' }}>Active Cycle</span>
             </div>
-            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#111827', marginBottom: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontWeight: 500, fontSize: '0.95rem', color: C.text, marginBottom: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONTS.heading }}>
               {activeCycle.title}
             </div>
             {todayInfo ? (
               <>
-                <div style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 700, marginBottom: '0.875rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#4A7FA5', fontWeight: 400, marginBottom: '0.875rem' }}>
                   {getPhaseLabel(todayInfo.weekNum, todayInfo.totalWeeks)}
                 </div>
                 <div style={{ marginBottom: '0.75rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#6b7280', marginBottom: '0.3rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: C.textSecondary, marginBottom: '0.3rem', fontWeight: 300 }}>
                     <span>Week {todayInfo.weekNum} of {todayInfo.totalWeeks}</span>
                     <span>{Math.round((todayInfo.weekNum / todayInfo.totalWeeks) * 100)}%</span>
                   </div>
-                  <div style={{ height: '6px', backgroundColor: '#e5e7eb', borderRadius: '999px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(todayInfo.weekNum / todayInfo.totalWeeks) * 100}%`, backgroundColor: '#2563eb', borderRadius: '999px' }} />
+                  <div style={{ height: '4px', backgroundColor: C.border, borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(todayInfo.weekNum / todayInfo.totalWeeks) * 100}%`, backgroundColor: '#4A7FA5', borderRadius: '999px' }} />
                   </div>
                 </div>
                 <Link
                   to="/saved-cycles"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#2563eb', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#4A7FA5', fontSize: '0.78rem', fontWeight: 400, textDecoration: 'none' }}
                 >
                   View full cycle <ChevronRight size={13} />
                 </Link>
               </>
             ) : (
               <>
-                <div style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.78rem', color: C.textSecondary, marginBottom: '0.75rem', fontWeight: 300 }}>
                   {activeCycle.cycle_length}-week · {activeCycle.split_label}
                 </div>
                 <Link
                   to="/saved-cycles"
-                  style={{ color: '#2563eb', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none' }}
+                  style={{ color: '#4A7FA5', fontSize: '0.78rem', fontWeight: 400, textDecoration: 'none' }}
                 >
                   View cycle →
                 </Link>
@@ -400,20 +395,20 @@ export default function Home() {
       {/* ── 4. Recommendations ─────────────────────────────────────────── */}
       {(untrainedMuscles.length > 0 || unusedGoals.length > 0) && (
         <div style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827', margin: '0 0 0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 500, color: C.text, margin: '0 0 0.75rem', fontFamily: FONTS.heading }}>
             Recommendations
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.75rem' }}>
             {untrainedMuscles.slice(0, 3).map((muscle) => {
-              const color = MUSCLE_COLORS[muscle] || orange;
+              const color = MUSCLE_COLORS[muscle] || C.accent;
               return (
-                <div key={muscle} style={{ backgroundColor: '#fff', borderRadius: '10px', padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb' }}>
-                  <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Undertrained</div>
-                  <div style={{ fontWeight: 800, color: '#111827', fontSize: '0.9rem', marginBottom: '0.3rem' }}>{MUSCLE_LABELS[muscle]}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#6b7280', marginBottom: '0.75rem' }}>Not hit in 7 days</div>
+                <div key={muscle} style={{ ...card, padding: '1rem' }}>
+                  <div style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Undertrained</div>
+                  <div style={{ fontWeight: 500, color: C.text, fontSize: '0.9rem', marginBottom: '0.3rem', fontFamily: FONTS.heading }}>{MUSCLE_LABELS[muscle]}</div>
+                  <div style={{ fontSize: '0.72rem', color: C.textSecondary, marginBottom: '0.75rem', fontWeight: 300 }}>Not hit in 7 days</div>
                   <button
                     onClick={() => navigate('/generate', { state: { muscleGroups: [muscle] } })}
-                    style={{ width: '100%', padding: '0.4rem', backgroundColor: color + '18', border: `1.5px solid ${color}40`, borderRadius: '6px', color, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                    style={{ width: '100%', padding: '0.4rem', backgroundColor: color + '18', border: `1px solid ${color}40`, borderRadius: '6px', color, fontWeight: 400, fontSize: '0.78rem', cursor: 'pointer' }}
                   >
                     Train {MUSCLE_LABELS[muscle]}
                   </button>
@@ -421,15 +416,15 @@ export default function Home() {
               );
             })}
             {unusedGoals.slice(0, 2).map((goal) => {
-              const color = GOAL_COLORS[goal] || orange;
+              const color = GOAL_COLORS[goal] || C.accent;
               return (
-                <div key={goal} style={{ backgroundColor: '#fff', borderRadius: '10px', padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb' }}>
-                  <div style={{ fontSize: '0.65rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Try Something New</div>
-                  <div style={{ fontWeight: 800, color: '#111827', fontSize: '0.9rem', marginBottom: '0.3rem' }}>{GOAL_LABELS[goal]}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#6b7280', marginBottom: '0.75rem' }}>Not used recently</div>
+                <div key={goal} style={{ ...card, padding: '1rem' }}>
+                  <div style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Try Something New</div>
+                  <div style={{ fontWeight: 500, color: C.text, fontSize: '0.9rem', marginBottom: '0.3rem', fontFamily: FONTS.heading }}>{GOAL_LABELS[goal]}</div>
+                  <div style={{ fontSize: '0.72rem', color: C.textSecondary, marginBottom: '0.75rem', fontWeight: 300 }}>Not used recently</div>
                   <button
                     onClick={() => navigate('/generate', { state: { goals: [goal] } })}
-                    style={{ width: '100%', padding: '0.4rem', backgroundColor: color + '18', border: `1.5px solid ${color}40`, borderRadius: '6px', color, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                    style={{ width: '100%', padding: '0.4rem', backgroundColor: color + '18', border: `1px solid ${color}40`, borderRadius: '6px', color, fontWeight: 400, fontSize: '0.78rem', cursor: 'pointer' }}
                   >
                     {GOAL_LABELS[goal]} Session
                   </button>
@@ -444,22 +439,22 @@ export default function Home() {
       {notifications.length > 0 && (
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.625rem' }}>
-            <Bell size={14} color="#6b7280" />
-            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#111827' }}>Reminders</span>
+            <Bell size={14} color={C.textSecondary} />
+            <span style={{ fontSize: '0.875rem', fontWeight: 400, color: C.text }}>Reminders</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {notifications.map((n) => (
               <div
                 key={n.id}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.625rem 0.875rem', gap: '0.5rem' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...card, padding: '0.625rem 0.875rem', gap: '0.5rem' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
                   <span style={{ fontSize: '1rem' }}>{n.icon}</span>
-                  <span style={{ fontSize: '0.82rem', color: '#374151' }}>{n.text}</span>
+                  <span style={{ fontSize: '0.82rem', color: C.text, fontWeight: 300 }}>{n.text}</span>
                 </div>
                 <button
                   onClick={() => dismissNotif(n.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.1rem', flexShrink: 0, color: '#9ca3af', display: 'flex' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.1rem', flexShrink: 0, color: C.textSecondary, display: 'flex' }}
                 >
                   <X size={14} />
                 </button>
@@ -470,10 +465,10 @@ export default function Home() {
       )}
 
       {/* ── 6. Community Announcements ──────────────────────────────────── */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e5e7eb' }}>
+      <div style={{ ...card, padding: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-          <MessageSquare size={16} color="#6b7280" />
-          <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.875rem' }}>Community Announcements</span>
+          <MessageSquare size={16} color={C.textSecondary} />
+          <span style={{ fontWeight: 400, color: C.text, fontSize: '0.875rem' }}>Community Announcements</span>
         </div>
 
         {/* Post form */}
@@ -484,40 +479,40 @@ export default function Home() {
             onChange={(e) => setNewAnnouncement(e.target.value.slice(0, 280))}
             onKeyDown={(e) => { if (e.key === 'Enter') postAnnouncement(); }}
             placeholder="Share something with the community…"
-            style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '0.85rem', outline: 'none', color: '#111827' }}
-            onFocus={(e) => (e.target.style.borderColor = orange)}
-            onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+            style={{ ...inputBase, flex: 1 }}
+            onFocus={(e) => (e.target.style.borderColor = C.accent)}
+            onBlur={(e) => (e.target.style.borderColor = C.border)}
           />
           <button
             onClick={postAnnouncement}
             disabled={postingAnnouncement || !newAnnouncement.trim()}
-            style={{ padding: '0.5rem 0.75rem', backgroundColor: orange, border: 'none', borderRadius: '8px', cursor: postingAnnouncement || !newAnnouncement.trim() ? 'default' : 'pointer', opacity: postingAnnouncement || !newAnnouncement.trim() ? 0.45 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            style={{ ...btnPrimary, padding: '0.5rem 0.75rem', opacity: postingAnnouncement || !newAnnouncement.trim() ? 0.45 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >
             <Send size={16} color="#fff" />
           </button>
         </div>
         {announcementError && (
-          <p style={{ color: '#dc2626', fontSize: '0.8rem', margin: '0 0 0.75rem' }}>{announcementError}</p>
+          <p style={{ color: C.accent, fontSize: '0.8rem', margin: '0 0 0.75rem' }}>{announcementError}</p>
         )}
 
         {/* Announcement list */}
         {announcements.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.82rem', padding: '1.25rem 0' }}>
+          <div style={{ textAlign: 'center', color: C.textSecondary, fontSize: '0.82rem', padding: '1.25rem 0', fontWeight: 300 }}>
             No announcements yet. Be the first to post!
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
             {announcements.map((ann) => (
               <div key={ann.id} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: `linear-gradient(135deg, ${orange}, #ff9258)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 400, color: '#fff', flexShrink: 0 }}>
                   {ann.username?.[0]?.toUpperCase() ?? '?'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#111827' }}>{ann.username}</span>
-                    <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{relTime(ann.created_at)}</span>
+                    <span style={{ fontWeight: 400, fontSize: '0.82rem', color: C.text }}>{ann.username}</span>
+                    <span style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300 }}>{relTime(ann.created_at)}</span>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#374151', marginTop: '0.1rem', wordBreak: 'break-word', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '0.85rem', color: C.text, marginTop: '0.1rem', wordBreak: 'break-word', lineHeight: 1.5, fontWeight: 300 }}>
                     {ann.content}
                   </div>
                 </div>

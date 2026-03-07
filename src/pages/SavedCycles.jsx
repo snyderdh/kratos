@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import CycleViewer from '../components/CycleViewer';
-
-const orange = '#FF6B2B';
+import { C, FONTS, card, btnSecondary, tagBase } from '../theme';
 
 export default function SavedCycles() {
   const { user } = useAuth();
@@ -43,7 +42,6 @@ export default function SavedCycles() {
     if (err) {
       setError('Failed to load cycle: ' + err.message);
     } else {
-      // Normalize snake_case → camelCase fields for CycleViewer
       setActiveCycle({
         ...data,
         splitLabel: data.split_label,
@@ -71,13 +69,13 @@ export default function SavedCycles() {
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1rem' }}>
         <button
           onClick={() => setActiveCycle(null)}
-          style={{ background: 'none', border: 'none', color: orange, fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', padding: 0, marginBottom: '1rem' }}
+          style={{ background: 'none', border: 'none', color: C.accent, fontWeight: 400, fontSize: '0.875rem', cursor: 'pointer', padding: 0, marginBottom: '1rem', fontFamily: FONTS.body }}
         >
           ← Back to Saved Cycles
         </button>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111827', marginTop: 0, marginBottom: '0.25rem' }}>{activeCycle.title}</h2>
-          <p style={{ color: '#6b7280', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+        <div style={{ ...card, padding: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 500, color: C.text, marginTop: 0, marginBottom: '0.25rem', fontFamily: FONTS.heading }}>{activeCycle.title}</h2>
+          <p style={{ color: C.textSecondary, fontSize: '0.82rem', marginBottom: '1.25rem', fontWeight: 300 }}>
             Saved {new Date(activeCycle.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
           <CycleViewer cycle={activeCycle} />
@@ -91,27 +89,27 @@ export default function SavedCycles() {
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#111827', margin: 0 }}>Saved Cycles</h1>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 500, color: C.text, margin: 0, fontFamily: FONTS.heading }}>Saved Cycles</h1>
           {!loading && (
-            <p style={{ color: '#6b7280', margin: '0.25rem 0 0', fontSize: '0.875rem' }}>
+            <p style={{ color: C.textSecondary, margin: '0.25rem 0 0', fontSize: '0.875rem', fontWeight: 300 }}>
               {cycles.length} cycle{cycles.length !== 1 ? 's' : ''} saved
             </p>
           )}
         </div>
       </div>
 
-      {error && <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</p>}
+      {error && <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 300 }}>{error}</p>}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#9ca3af', fontSize: '0.9rem' }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: '4rem', color: C.textSecondary, fontSize: '0.9rem', fontWeight: 300 }}>Loading…</div>
       ) : cycles.length === 0 ? (
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '3rem 2rem', textAlign: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div style={{ ...card, padding: '3rem 2rem', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📋</div>
-          <h3 style={{ color: '#374151', fontWeight: 700, marginBottom: '0.5rem', margin: '0 0 0.5rem' }}>No saved cycles yet</h3>
-          <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Generate a training cycle and save it to see it here.</p>
+          <h3 style={{ color: C.text, fontWeight: 500, margin: '0 0 0.5rem', fontFamily: FONTS.heading }}>No saved cycles yet</h3>
+          <p style={{ color: C.textSecondary, marginBottom: '1.5rem', fontWeight: 300 }}>Generate a training cycle and save it to see it here.</p>
           <a
             href="/cycle"
-            style={{ backgroundColor: orange, color: '#fff', padding: '0.65rem 1.25rem', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '0.9rem', display: 'inline-block' }}
+            style={{ ...{}, backgroundColor: C.accent, color: '#fff', padding: '0.65rem 1.25rem', borderRadius: '8px', textDecoration: 'none', fontWeight: 400, fontSize: '0.9rem', display: 'inline-block', fontFamily: FONTS.body }}
           >
             Go to Cycle Generator →
           </a>
@@ -121,24 +119,24 @@ export default function SavedCycles() {
           {cycles.map((c) => (
             <div
               key={c.id}
-              style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.125rem 1.375rem', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}
+              style={{ ...card, padding: '1.125rem 1.375rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
-                  <span style={{ fontWeight: 800, color: '#111827', fontSize: '1rem' }}>{c.title}</span>
+                  <span style={{ fontWeight: 400, color: C.text, fontSize: '1rem' }}>{c.title}</span>
                   {c.is_public && (
-                    <span style={{ backgroundColor: '#f0fdf4', color: '#16a34a', padding: '0.12rem 0.5rem', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 700 }}>Public</span>
+                    <span style={{ ...tagBase, color: '#5A9E6F', borderColor: '#5A9E6F' }}>Public</span>
                   )}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.45rem' }}>
-                  <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600 }}>{c.split_label}</span>
-                  <span style={{ backgroundColor: '#f0fdf4', color: '#16a34a', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600 }}>{c.cycle_length} weeks</span>
-                  <span style={{ backgroundColor: '#fff7ed', color: orange, padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600 }}>{c.days_per_week}×/week</span>
+                  <span style={{ ...tagBase }}>{c.split_label}</span>
+                  <span style={{ ...tagBase }}>{c.cycle_length} weeks</span>
+                  <span style={{ ...tagBase }}>{c.days_per_week}×/week</span>
                   {(c.goals ?? []).map((g) => (
-                    <span key={g} style={{ backgroundColor: '#faf5ff', color: '#9333ea', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize' }}>{g}</span>
+                    <span key={g} style={{ ...tagBase, textTransform: 'capitalize' }}>{g}</span>
                   ))}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                <div style={{ fontSize: '0.75rem', color: C.textSecondary, fontWeight: 300 }}>
                   Saved {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
@@ -147,15 +145,15 @@ export default function SavedCycles() {
                 <button
                   onClick={() => handleView(c.id)}
                   disabled={loadingCycle === c.id}
-                  style={{ padding: '0.45rem 0.9rem', borderRadius: '6px', border: `1.5px solid ${orange}`, backgroundColor: 'transparent', color: orange, fontWeight: 700, fontSize: '0.8rem', cursor: loadingCycle === c.id ? 'default' : 'pointer', opacity: loadingCycle === c.id ? 0.6 : 1 }}
+                  style={{ ...btnSecondary, padding: '0.4rem 0.875rem', fontSize: '0.8rem', cursor: loadingCycle === c.id ? 'default' : 'pointer', opacity: loadingCycle === c.id ? 0.6 : 1 }}
                 >
                   {loadingCycle === c.id ? 'Loading…' : 'View'}
                 </button>
                 <button
                   onClick={(e) => handleDelete(c.id, e)}
-                  style={{ padding: '0.45rem 0.9rem', borderRadius: '6px', border: '1.5px solid #fee2e2', backgroundColor: 'transparent', color: '#dc2626', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', transition: 'background-color 0.15s' }}
-                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fee2e2')}
-                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  style={{ padding: '0.4rem 0.875rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 300, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.15s', fontFamily: FONTS.body }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
+                  onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; }}
                 >
                   Delete
                 </button>

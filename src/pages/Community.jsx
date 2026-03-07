@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
-
-const orange = '#FF6B2B';
+import { C, FONTS, card, btnPrimary, inputBase, tagBase } from '../theme';
 
 // ── Utility ────────────────────────────────────────────────────────────────
 function timeAgo(iso) {
@@ -62,7 +61,7 @@ function ChevronIcon({ open }) {
 }
 
 // ── Avatar ─────────────────────────────────────────────────────────────────
-const AVATAR_COLORS = ['#FF6B2B', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4'];
+const AVATAR_COLORS = ['#C2622A', '#4A7FA5', '#5A9E6F', '#7C6FAF', '#C4924A', '#4A9BAD'];
 
 function Avatar({ username, size = 36 }) {
   const letter = (username || '?')[0].toUpperCase();
@@ -71,7 +70,7 @@ function Avatar({ username, size = 36 }) {
     <div style={{
       width: size, height: size, borderRadius: '50%', backgroundColor: color,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontWeight: 800, color: '#fff', fontSize: size * 0.42, flexShrink: 0,
+      fontWeight: 400, color: '#fff', fontSize: size * 0.42, flexShrink: 0,
     }}>
       {letter}
     </div>
@@ -81,7 +80,7 @@ function Avatar({ username, size = 36 }) {
 // ── Action button ──────────────────────────────────────────────────────────
 function ActionBtn({ onClick, active, danger, children }) {
   const [hovered, setHovered] = useState(false);
-  const activeColor = danger ? '#ef4444' : orange;
+  const activeColor = danger ? '#ef4444' : C.accent;
   return (
     <button
       onClick={onClick}
@@ -90,9 +89,9 @@ function ActionBtn({ onClick, active, danger, children }) {
       style={{
         display: 'flex', alignItems: 'center', gap: '0.3rem',
         padding: '0.4rem 0.65rem', borderRadius: '6px', border: 'none',
-        backgroundColor: hovered || active ? '#f3f4f6' : 'transparent',
-        color: active ? activeColor : '#6b7280',
-        cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+        backgroundColor: hovered || active ? C.accentMuted : 'transparent',
+        color: active ? activeColor : C.textSecondary,
+        cursor: 'pointer', fontSize: '0.8rem', fontWeight: 300,
         transition: 'all 0.1s',
       }}
     >
@@ -105,7 +104,7 @@ function ActionBtn({ onClick, active, danger, children }) {
 function FeedCard({ routine, userId, liked, likeCount, onLike }) {
   const [exercisesOpen, setExercisesOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [comments, setComments] = useState(null); // null = not yet loaded
+  const [comments, setComments] = useState(null);
   const [commentCount, setCommentCount] = useState(routine._commentCount ?? 0);
   const [commentDraft, setCommentDraft] = useState('');
   const [posting, setPosting] = useState(false);
@@ -173,32 +172,32 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
   }
 
   return (
-    <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+    <div style={{ ...card, overflow: 'hidden' }}>
 
       {/* Header: avatar + username + goal + time */}
-      <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid #f3f4f6' }}>
+      <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: `1px solid ${C.border}` }}>
         <Avatar username={username} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>{username}</span>
-            <span style={{ padding: '1px 8px', borderRadius: '20px', backgroundColor: '#fff5f0', color: orange, fontWeight: 700, fontSize: '0.68rem', border: `1px solid ${orange}` }}>
+            <span style={{ fontWeight: 400, color: C.text, fontSize: '0.9rem' }}>{username}</span>
+            <span style={{ ...tagBase, color: C.accent, borderColor: C.accent }}>
               {goalLabel}
             </span>
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.1rem' }}>{timeAgo(routine.created_at)}</div>
+          <div style={{ fontSize: '0.72rem', color: C.textSecondary, marginTop: '0.1rem', fontWeight: 300 }}>{timeAgo(routine.created_at)}</div>
         </div>
       </div>
 
       {/* Body: title + muscle chips + exercise list */}
       <div style={{ padding: '1rem 1.25rem' }}>
-        <h3 style={{ fontWeight: 800, fontSize: '1.05rem', color: '#111827', marginBottom: '0.55rem' }}>
+        <h3 style={{ fontWeight: 500, fontSize: '1.05rem', color: C.text, marginBottom: '0.55rem', fontFamily: FONTS.heading }}>
           {routine.title}
         </h3>
 
         {muscleGroups.length > 0 && (
           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
             {muscleGroups.map((m) => (
-              <span key={m} style={{ padding: '2px 9px', borderRadius: '20px', fontSize: '0.68rem', fontWeight: 700, textTransform: 'capitalize', backgroundColor: '#f3f4f6', color: '#6b7280' }}>
+              <span key={m} style={{ ...tagBase, textTransform: 'capitalize' }}>
                 {m}
               </span>
             ))}
@@ -208,7 +207,7 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
         {/* Toggle exercise list */}
         <button
           onClick={() => setExercisesOpen((v) => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', color: '#6b7280', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', padding: '0.25rem 0', marginBottom: exercisesOpen ? '0.75rem' : 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', color: C.textSecondary, fontSize: '0.82rem', fontWeight: 300, cursor: 'pointer', padding: '0.25rem 0', marginBottom: exercisesOpen ? '0.75rem' : 0 }}
         >
           <ChevronIcon open={exercisesOpen} />
           {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
@@ -217,12 +216,12 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
         {exercisesOpen && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {exercises.map((ex, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '6px', backgroundColor: '#f9fafb', gap: '0.75rem' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '6px', backgroundColor: C.bg, gap: '0.75rem' }}>
                 <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: orange, marginRight: '0.4rem' }}>#{i + 1}</span>
-                  <span style={{ fontWeight: 600, color: '#111827', fontSize: '0.875rem' }}>{ex.name}</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 400, color: C.accent, marginRight: '0.4rem' }}>#{i + 1}</span>
+                  <span style={{ fontWeight: 400, color: C.text, fontSize: '0.875rem' }}>{ex.name}</span>
                 </div>
-                <span style={{ color: '#6b7280', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <span style={{ color: C.textSecondary, fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 300 }}>
                   {ex.sets} × {ex.reps} · {ex.rest}
                 </span>
               </div>
@@ -232,15 +231,15 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
       </div>
 
       {/* Action bar */}
-      <div style={{ padding: '0.6rem 1rem', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: '0.1rem', flexWrap: 'wrap' }}>
+      <div style={{ padding: '0.6rem 1rem', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '0.1rem', flexWrap: 'wrap' }}>
         <ActionBtn onClick={onLike} active={liked} danger>
           <HeartIcon filled={liked} />
-          <span style={{ color: liked ? '#ef4444' : '#9ca3af', minWidth: '12px' }}>{likeCount > 0 ? likeCount : ''}</span>
+          <span style={{ color: liked ? '#ef4444' : C.textSecondary, minWidth: '12px' }}>{likeCount > 0 ? likeCount : ''}</span>
         </ActionBtn>
 
         <ActionBtn onClick={openComments} active={commentsOpen}>
           <CommentIcon />
-          <span style={{ color: '#9ca3af', minWidth: '12px' }}>{commentCount > 0 ? commentCount : ''}</span>
+          <span style={{ color: C.textSecondary, minWidth: '12px' }}>{commentCount > 0 ? commentCount : ''}</span>
         </ActionBtn>
 
         <ActionBtn onClick={handleSave}>
@@ -254,7 +253,7 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
         </ActionBtn>
 
         {toast && (
-          <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>
+          <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#5A9E6F', fontWeight: 400, flexShrink: 0 }}>
             ✓ {toast}
           </span>
         )}
@@ -262,23 +261,22 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
 
       {/* Comment section */}
       {commentsOpen && (
-        <div style={{ borderTop: '1px solid #e5e7eb', padding: '1rem 1.25rem', backgroundColor: '#fafafa' }}>
-          {/* Comment list */}
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '1rem 1.25rem', backgroundColor: C.bg }}>
           {comments === null ? (
-            <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: '0.75rem' }}>Loading…</p>
+            <p style={{ color: C.textSecondary, fontSize: '0.8rem', marginBottom: '0.75rem', fontWeight: 300 }}>Loading…</p>
           ) : comments.length === 0 ? (
-            <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: '0.75rem' }}>No comments yet — be the first!</p>
+            <p style={{ color: C.textSecondary, fontSize: '0.8rem', marginBottom: '0.75rem', fontWeight: 300 }}>No comments yet — be the first!</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1rem' }}>
               {comments.map((c) => (
                 <div key={c.id} style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
                   <Avatar username={c.profiles?.username} size={28} />
-                  <div style={{ flex: 1, backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+                  <div style={{ flex: 1, backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.78rem', color: '#374151' }}>{c.profiles?.name?.split(' ')[0] || (c.profiles?.username ? `@${c.profiles.username}` : 'Unknown')}</span>
-                      <span style={{ fontSize: '0.68rem', color: '#9ca3af' }}>{timeAgo(c.created_at)}</span>
+                      <span style={{ fontWeight: 400, fontSize: '0.78rem', color: C.text }}>{c.profiles?.name?.split(' ')[0] || (c.profiles?.username ? `@${c.profiles.username}` : 'Unknown')}</span>
+                      <span style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{timeAgo(c.created_at)}</span>
                     </div>
-                    <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.45, margin: 0 }}>{c.content}</p>
+                    <p style={{ fontSize: '0.875rem', color: C.text, lineHeight: 1.45, margin: 0, fontWeight: 300 }}>{c.content}</p>
                   </div>
                 </div>
               ))}
@@ -293,14 +291,14 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
               value={commentDraft}
               onChange={(e) => setCommentDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') postComment(); }}
-              style={{ flex: 1, padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1.5px solid #e5e7eb', backgroundColor: '#ffffff', fontSize: '0.875rem', color: '#111827', outline: 'none', transition: 'border-color 0.15s' }}
-              onFocus={(e) => (e.target.style.borderColor = orange)}
-              onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+              style={{ ...inputBase, flex: 1 }}
+              onFocus={(e) => (e.target.style.borderColor = C.accent)}
+              onBlur={(e) => (e.target.style.borderColor = C.border)}
             />
             <button
               onClick={postComment}
               disabled={posting || !commentDraft.trim()}
-              style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: 'none', backgroundColor: commentDraft.trim() ? orange : '#e5e7eb', color: commentDraft.trim() ? '#ffffff' : '#9ca3af', fontWeight: 700, fontSize: '0.8rem', cursor: commentDraft.trim() ? 'pointer' : 'default', transition: 'all 0.15s', flexShrink: 0 }}
+              style={{ ...btnPrimary, backgroundColor: commentDraft.trim() ? C.accent : C.border, color: commentDraft.trim() ? '#fff' : C.textSecondary, cursor: commentDraft.trim() ? 'pointer' : 'default', flexShrink: 0, padding: '0.6rem 1rem' }}
             >
               {posting ? '…' : 'Post'}
             </button>
@@ -358,7 +356,6 @@ export default function Community() {
     if (!user) return;
     const isLiked = userLikes.has(routineId);
 
-    // Optimistic update
     setUserLikes((prev) => {
       const s = new Set(prev);
       isLiked ? s.delete(routineId) : s.add(routineId);
@@ -381,18 +378,18 @@ export default function Community() {
       {/* Page header */}
       <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.5px', marginBottom: '0.25rem' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: 500, color: C.text, marginBottom: '0.25rem', fontFamily: FONTS.heading }}>
             Community
           </h1>
-          <p style={{ color: '#6b7280', fontSize: '0.95rem' }}>
+          <p style={{ color: C.textSecondary, fontSize: '0.95rem', fontWeight: 300 }}>
             Routines shared by athletes like you.
           </p>
         </div>
         <button
           onClick={loadFeed}
-          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1.5px solid #e5e7eb', backgroundColor: '#ffffff', color: '#374151', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', transition: 'border-color 0.15s' }}
-          onMouseOver={(e) => (e.currentTarget.style.borderColor = orange)}
-          onMouseOut={(e) => (e.currentTarget.style.borderColor = '#e5e7eb')}
+          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontWeight: 300, fontSize: '0.8rem', cursor: 'pointer', transition: 'border-color 0.15s' }}
+          onMouseOver={(e) => (e.currentTarget.style.borderColor = C.accent)}
+          onMouseOut={(e) => (e.currentTarget.style.borderColor = C.border)}
         >
           Refresh
         </button>
@@ -401,21 +398,21 @@ export default function Community() {
       {/* States */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-          <div style={{ width: '36px', height: '36px', border: '3px solid #e5e7eb', borderTop: `3px solid ${orange}`, borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto' }} />
+          <div style={{ width: '36px', height: '36px', border: `3px solid ${C.border}`, borderTop: `3px solid ${C.accent}`, borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto' }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px' }}>
+        <div style={{ textAlign: 'center', padding: '3rem', ...card }}>
           <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.9rem' }}>{error}</p>
-          <button onClick={loadFeed} style={{ color: orange, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>
+          <button onClick={loadFeed} style={{ color: C.accent, fontWeight: 400, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>
             Try again
           </button>
         </div>
       ) : routines.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem 2rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div style={{ textAlign: 'center', padding: '4rem 2rem', ...card }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏋️</div>
-          <p style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.5rem' }}>No shared routines yet</p>
-          <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+          <p style={{ color: C.text, fontSize: '1.05rem', fontWeight: 500, marginBottom: '0.5rem', fontFamily: FONTS.heading }}>No shared routines yet</p>
+          <p style={{ color: C.textSecondary, fontSize: '0.875rem', fontWeight: 300 }}>
             Generate a routine and toggle <strong>Share to Community</strong> when saving — yours could be first!
           </p>
         </div>

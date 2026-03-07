@@ -40,6 +40,29 @@ const PHASE_EX_LABELS = {
   core:        { label: 'Core Finisher',      desc: 'Anti-extension and stabilization',                     estPerEx: 4.5 },
 };
 
+// ── Tracking type helpers ──────────────────────────────────────────────
+// Mirrors the trackingType assigned in exercises.js
+const TIME_EX_IDS     = new Set([36, 114, 130, 163, 167, 169, 170]);
+const WEIGHTED_BW_IDS = new Set([10, 31, 93, 107, 108]);
+
+function getTrackingType(ex) {
+  if (!ex) return 'reps';
+  if (TIME_EX_IDS.has(ex.id)) return 'time';
+  if (WEIGHTED_BW_IDS.has(ex.id)) return 'weighted_bodyweight';
+  if (ex.equipment === 'bodyweight') return 'bodyweight';
+  return 'reps';
+}
+
+function formatPrescription(ex) {
+  const tt   = getTrackingType(ex);
+  const sets = ex.sets ?? 3;
+  const reps = ex.reps ?? '—';
+  if (tt === 'time')               return `${sets} × ${reps} hold`;
+  if (tt === 'bodyweight')         return `${sets} × ${reps} reps (bodyweight)`;
+  if (tt === 'weighted_bodyweight') return `${sets} × ${reps} reps (+ weight optional)`;
+  return `${sets} × ${reps}`;
+}
+
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const REST_TIPS = [
@@ -367,7 +390,7 @@ function ExerciseCard({ ex, num }) {
         {/* Sets / reps / rest / RPE row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', paddingLeft: '1.5rem' }}>
           <span style={{ fontWeight: 500, color: C.text, fontSize: '0.9rem', fontFamily: FONTS.heading }}>
-            {ex.sets} × {ex.reps}
+            {formatPrescription(ex)}
           </span>
           <span style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300 }}>{ex.rest} rest</span>
           {ex.targetRPE && (
@@ -588,26 +611,40 @@ function RestDayContent({ nextDay }) {
 
 function SuggestionBanner({ suggestion }) {
   if (!suggestion) return null;
+  const isTimeSug = suggestion.type === 'time';
+  const isBWSug   = suggestion.type === 'bodyweight';
+  const body = isTimeSug
+    ? (<>Last session: <strong style={{ fontWeight: 500 }}>{suggestion.lastDuration} sec</strong>{' — try '}<strong style={{ fontWeight: 500 }}>{suggestion.suggestDuration} sec</strong> today</>)
+    : isBWSug
+    ? (<>Last session: <strong style={{ fontWeight: 500 }}>× {suggestion.lastReps} reps</strong>{suggestion.suggestReps ? <> — try <strong style={{ fontWeight: 500 }}>{suggestion.suggestReps} reps</strong> today</> : null}</>)
+    : (<>Last session: <strong style={{ fontWeight: 500 }}>{suggestion.lastWeight} lbs × {suggestion.lastReps}</strong>{' — try '}<strong style={{ fontWeight: 500 }}>{suggestion.suggestWeight} lbs</strong> today</>);
   return (
     <div style={{ padding: '0.45rem 0.75rem', backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#2563eb', fontWeight: 300, marginBottom: '0.5rem' }}>
-      Last session:{' '}
-      <strong style={{ fontWeight: 500 }}>{suggestion.lastWeight} lbs × {suggestion.lastReps}</strong>
-      {' — try '}<strong style={{ fontWeight: 500 }}>{suggestion.suggestWeight} lbs</strong> today
+      {body}
     </div>
   );
 }
 
 function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, suggestion, saving, onCompleteSet }) {
   const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
-  const [weight, setWeight] = useState(() => suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
-  const [reps,   setReps]   = useState('');
-  const [rpe,    setRpe]    = useState('');
-  const [error,  setError]  = useState('');
+  const tt = getTrackingType(ex);
+
+  const [weight,   setWeight]   = useState(() => suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
+  const [reps,     setReps]     = useState('');
+  const [duration, setDuration] = useState('');
+  const [rpe,      setRpe]      = useState('');
+  const [error,    setError]    = useState('');
 
   const isDone     = activeSetIdx >= numSets;
   const currentSet = activeSetIdx + 1;
   const isLastSet  = currentSet === numSets;
-  const hasValues  = weight.trim() !== '' && reps.trim() !== '';
+
+  // Determine if the user has filled enough to save
+  const hasValues = tt === 'time'
+    ? duration.trim() !== ''
+    : tt === 'bodyweight'
+    ? reps.trim() !== ''
+    : reps.trim() !== ''; // weighted_bodyweight and reps — weight optional for bodyweight
 
   useEffect(() => {
     if (suggestion?.suggestWeight && !weight) setWeight(String(suggestion.suggestWeight));
@@ -615,16 +652,21 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
 
   async function handleComplete() {
     if (saving) return;
-    if (!weight.trim() || !reps.trim()) {
-      setError('Enter weight and reps to log this set.');
+    if (tt === 'time' && !duration.trim()) {
+      setError('Enter a duration to log this set.');
+      return;
+    }
+    if (tt !== 'time' && !reps.trim()) {
+      setError('Enter reps to log this set.');
       return;
     }
     setError('');
-    const ok = await onCompleteSet(exIdx, activeSetIdx, { weight, reps, rpe });
+    const ok = await onCompleteSet(exIdx, activeSetIdx, { weight, reps, duration, rpe });
     if (ok === false) {
       setError('Save failed — check your connection or create the workout_logs table in Supabase.');
     } else {
       setReps('');
+      setDuration('');
       setRpe('');
     }
   }
@@ -632,12 +674,42 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
   // 1rem = 16px prevents iOS Safari auto-zoom on input focus
   const inputStyle = { width: '100%', padding: '0.5rem', borderRadius: '8px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '1rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
 
+  // Build input fields based on tracking type
+  const fields = tt === 'time'
+    ? [
+        { label: 'Duration (sec)', val: duration, set: setDuration, ph: '45', mode: 'numeric' },
+        { label: 'Actual RPE',     val: rpe,      set: setRpe,      ph: '7',  mode: 'decimal' },
+      ]
+    : tt === 'bodyweight'
+    ? [
+        { label: 'Reps Done',  val: reps, set: setReps, ph: '12', mode: 'numeric' },
+        { label: 'Actual RPE', val: rpe,  set: setRpe,  ph: '7',  mode: 'decimal' },
+      ]
+    : tt === 'weighted_bodyweight'
+    ? [
+        { label: 'Added wt (lbs)', val: weight,   set: setWeight,   ph: '0',  mode: 'decimal' },
+        { label: 'Reps Done',      val: reps,     set: setReps,     ph: '8',  mode: 'numeric' },
+        { label: 'Actual RPE',     val: rpe,      set: setRpe,      ph: '7',  mode: 'decimal' },
+      ]
+    : [
+        { label: 'Weight (lbs)', val: weight, set: setWeight, ph: '135', mode: 'decimal' },
+        { label: 'Reps Done',    val: reps,   set: setReps,   ph: '8',   mode: 'numeric' },
+        { label: 'Actual RPE',   val: rpe,    set: setRpe,    ph: '7',   mode: 'decimal' },
+      ];
+
+  function formatSavedSet(s) {
+    if (tt === 'time')               return `${s.duration_seconds ?? '—'} sec${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+    if (tt === 'bodyweight')         return `× ${s.reps_completed ?? '—'} reps (BW)${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+    if (tt === 'weighted_bodyweight') return `+${s.weight_lbs ?? 0} lbs × ${s.reps_completed ?? '—'} reps${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+    return `${s.weight_lbs ?? '—'} lbs × ${s.reps_completed ?? '—'} reps${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+  }
+
   return (
     <div style={{ borderRadius: '10px', border: `1px solid ${isDone ? '#86efac' : C.border}`, backgroundColor: isDone ? '#f0fdf4' : C.bg, overflow: 'visible', marginBottom: '0.5rem' }}>
       <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isDone ? '#bbf7d0' : C.border}`, borderRadius: isDone ? '10px 10px 0 0' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontWeight: 400, color: isDone ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
-          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{numSets} × {ex.reps} · Target RPE {ex.targetRPE ?? '—'}</div>
+          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{formatPrescription(ex)} · Target RPE {ex.targetRPE ?? '—'}</div>
         </div>
         {isDone && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -654,7 +726,7 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
           {savedSets.map((s) => (
             <div key={s.set_number} style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, padding: '0.18rem 0', borderBottom: `1px dashed ${C.border}` }}>
               <span style={{ color: pc.text, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
-              {s.weight_lbs} lbs × {s.reps_completed} reps{s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}
+              {formatSavedSet(s)}
             </div>
           ))}
         </div>
@@ -669,12 +741,8 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
             <span style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300 }}>Prescribed: {ex.reps}</span>
           </div>
           <SuggestionBanner suggestion={suggestion} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
-            {[
-              { label: 'Weight (lbs)', val: weight, set: setWeight, ph: '135', mode: 'decimal'  },
-              { label: 'Reps Done',    val: reps,   set: setReps,   ph: '8',   mode: 'numeric'  },
-              { label: 'Actual RPE',   val: rpe,    set: setRpe,    ph: '7',   mode: 'decimal'  },
-            ].map(({ label, val, set, ph, mode }) => (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${fields.length}, 1fr)`, gap: '0.5rem', marginBottom: '0.625rem' }}>
+            {fields.map(({ label, val, set, ph, mode }) => (
               <div key={label}>
                 <label style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.25rem' }}>{label}</label>
                 <input
@@ -715,19 +783,22 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
 
 function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, saving, onSaveAll }) {
   const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
+  const tt = getTrackingType(ex);
   const isAllSaved = savedSets.length >= numSets;
   const [error, setError] = useState('');
 
-  const [rows, setRows] = useState(() =>
-    Array.from({ length: numSets }, () => ({
-      weight: suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '',
-      reps:   '',
-      rpe:    String(ex.targetRPE ?? 7),
-    }))
-  );
+  const makeRow = () => tt === 'time'
+    ? { duration: '', rpe: String(ex.targetRPE ?? 7) }
+    : tt === 'bodyweight'
+    ? { reps: '', rpe: String(ex.targetRPE ?? 7) }
+    : tt === 'weighted_bodyweight'
+    ? { weight: '', reps: '', rpe: String(ex.targetRPE ?? 7) }
+    : { weight: suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '', reps: '', rpe: String(ex.targetRPE ?? 7) };
+
+  const [rows, setRows] = useState(() => Array.from({ length: numSets }, makeRow));
 
   useEffect(() => {
-    if (suggestion?.suggestWeight) {
+    if (suggestion?.suggestWeight && tt === 'reps') {
       setRows((prev) => prev.map((r) => ({ ...r, weight: r.weight || String(suggestion.suggestWeight) })));
     }
   }, [suggestion]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -737,15 +808,41 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
     setError('');
   }
 
-  const hasAnyValue = rows.some((r) => r.weight.trim() !== '' || r.reps.trim() !== '');
+  const hasAnyValue = rows.some((r) =>
+    tt === 'time' ? r.duration?.trim() !== '' : r.reps?.trim() !== ''
+  );
 
   // 1rem = 16px prevents iOS Safari auto-zoom on input focus
   const inputStyle = { width: '100%', padding: '0.4rem 0.45rem', borderRadius: '6px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '1rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
 
+  // Column config per tracking type
+  const cols = tt === 'time'
+    ? [{ header: 'Duration (sec)', field: 'duration', mode: 'numeric', ph: '45' },
+       { header: 'RPE',            field: 'rpe',      mode: 'decimal', ph: '7'  }]
+    : tt === 'bodyweight'
+    ? [{ header: 'Reps',  field: 'reps', mode: 'numeric', ph: '12' },
+       { header: 'RPE',   field: 'rpe',  mode: 'decimal', ph: '7'  }]
+    : tt === 'weighted_bodyweight'
+    ? [{ header: 'Added wt (lbs)', field: 'weight', mode: 'decimal', ph: '0'  },
+       { header: 'Reps',           field: 'reps',   mode: 'numeric', ph: '8'  },
+       { header: 'RPE',            field: 'rpe',    mode: 'decimal', ph: '7'  }]
+    : [{ header: 'Weight (lbs)', field: 'weight', mode: 'decimal', ph: '135' },
+       { header: 'Reps',         field: 'reps',   mode: 'numeric', ph: '8'   },
+       { header: 'RPE',          field: 'rpe',    mode: 'decimal', ph: '7'   }];
+
+  const gridCols = `28px ${cols.map(() => '1fr').join(' ')}`;
+
+  function formatSavedSet(s) {
+    if (tt === 'time')               return `${s.duration_seconds ?? '—'} sec${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+    if (tt === 'bodyweight')         return `× ${s.reps_completed ?? '—'} reps (BW)${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+    if (tt === 'weighted_bodyweight') return `+${s.weight_lbs ?? 0} lbs × ${s.reps_completed ?? '—'} reps${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+    return `${s.weight_lbs ?? '—'} lbs × ${s.reps_completed ?? '—'} reps${s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}`;
+  }
+
   async function handleSave() {
     if (saving) return;
     if (!hasAnyValue) {
-      setError('Enter at least one weight or rep count.');
+      setError(tt === 'time' ? 'Enter at least one duration.' : 'Enter at least one rep count.');
       return;
     }
     setError('');
@@ -760,7 +857,7 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
       <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isAllSaved ? '#bbf7d0' : C.border}`, borderRadius: '10px 10px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontWeight: 400, color: isAllSaved ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
-          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{numSets} × {ex.reps} · Target RPE {ex.targetRPE ?? '—'}</div>
+          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{formatPrescription(ex)} · Target RPE {ex.targetRPE ?? '—'}</div>
         </div>
         {isAllSaved && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -777,30 +874,30 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
           {savedSets.map((s) => (
             <div key={s.set_number} style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, padding: '0.18rem 0', borderBottom: `1px dashed ${C.border}` }}>
               <span style={{ color: pc.text, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
-              {s.weight_lbs} lbs × {s.reps_completed} reps{s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}
+              {formatSavedSet(s)}
             </div>
           ))}
         </div>
       ) : (
         <div style={{ padding: '0.625rem 0.875rem' }}>
           <SuggestionBanner suggestion={suggestion} />
-          <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 72px', gap: '0.375rem', marginBottom: '0.3rem' }}>
-            {['Set', 'Weight (lbs)', 'Reps', 'RPE'].map((h) => (
+          <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '0.375rem', marginBottom: '0.3rem' }}>
+            {['Set', ...cols.map((c) => c.header)].map((h) => (
               <div key={h} style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
             ))}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.625rem' }}>
             {rows.map((row, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 72px', gap: '0.375rem', alignItems: 'center' }}>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '0.375rem', alignItems: 'center' }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 500, color: TERRA, textAlign: 'center' }}>{i + 1}</div>
-                {(['weight', 'reps', 'rpe']).map((field) => (
+                {cols.map(({ field, mode, ph }) => (
                   <input
                     key={field}
                     type="text"
-                    inputMode={field === 'reps' ? 'numeric' : 'decimal'}
-                    value={row[field]}
+                    inputMode={mode}
+                    value={row[field] ?? ''}
                     onChange={(e) => updateRow(i, field, e.target.value)}
-                    placeholder={field === 'weight' ? '135' : field === 'reps' ? '8' : '7'}
+                    placeholder={ph}
                     style={inputStyle}
                   />
                 ))}
@@ -867,17 +964,23 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
     async function fetchAll() {
       const results = {};
       await Promise.all(exercises.map(async (ex, idx) => {
+        const tt = getTrackingType(ex);
         const { data } = await supabase
           .from('workout_logs')
-          .select('weight_lbs, reps_completed')
+          .select('weight_lbs, reps_completed, duration_seconds')
           .eq('user_id', user.id)
           .eq('exercise_name', ex.name)
           .order('logged_at', { ascending: false })
           .limit(2);
-        if (data && data.length >= 2) {
-          const last = data[0];
+        if (!data || data.length < 2) return;
+        const last = data[0];
+        if (tt === 'time' && last.duration_seconds) {
+          results[idx] = { type: 'time', lastDuration: last.duration_seconds, suggestDuration: last.duration_seconds + 5 };
+        } else if (tt === 'bodyweight' && last.reps_completed) {
+          results[idx] = { type: 'bodyweight', lastReps: last.reps_completed, suggestReps: last.reps_completed + 2 };
+        } else if (last.weight_lbs) {
           const w = parseFloat(last.weight_lbs);
-          results[idx] = { lastWeight: last.weight_lbs, lastReps: last.reps_completed, suggestWeight: Math.round((w + 5) * 2) / 2 };
+          results[idx] = { type: 'reps', lastWeight: last.weight_lbs, lastReps: last.reps_completed, suggestWeight: Math.round((w + 5) * 2) / 2 };
         }
       }));
       if (!cancelled) setSuggestions(results);
@@ -886,24 +989,46 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
     return () => { cancelled = true; };
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleCompleteSet(exIdx, setIdx, { weight, reps, rpe }) {
+  function buildPayload(ex, setNumber, data) {
+    const tt = getTrackingType(ex);
+    const base = {
+      user_id:       user.id,
+      cycle_id:      cycle.id,
+      week_number:   weekIdx + 1,
+      day_type:      day.type,
+      exercise_name: ex.name,
+      set_number:    setNumber,
+      rpe_actual:    data.rpe !== '' ? parseFloat(data.rpe) : null,
+    };
+    if (tt === 'time') {
+      return { ...base, duration_seconds: data.duration !== '' ? parseInt(data.duration, 10) : null };
+    }
+    if (tt === 'bodyweight') {
+      return { ...base, reps_completed: data.reps !== '' ? parseInt(data.reps, 10) : null, is_bodyweight: true };
+    }
+    if (tt === 'weighted_bodyweight') {
+      return { ...base, weight_lbs: data.weight !== '' ? parseFloat(data.weight) : null, reps_completed: data.reps !== '' ? parseInt(data.reps, 10) : null, is_bodyweight: true };
+    }
+    return { ...base, weight_lbs: data.weight !== '' ? parseFloat(data.weight) : null, reps_completed: data.reps !== '' ? parseInt(data.reps, 10) : null };
+  }
+
+  function buildSavedSetRecord(ex, setNumber, data) {
+    const tt = getTrackingType(ex);
+    const base = { set_number: setNumber, rpe_actual: data.rpe, saved: true };
+    if (tt === 'time') return { ...base, duration_seconds: data.duration };
+    if (tt === 'bodyweight') return { ...base, reps_completed: data.reps };
+    return { ...base, weight_lbs: data.weight, reps_completed: data.reps };
+  }
+
+  async function handleCompleteSet(exIdx, setIdx, data) {
     setSavingIdx(exIdx);
     const ex = exercises[exIdx];
-    const payload = {
-      user_id:        user.id,
-      cycle_id:       cycle.id,
-      week_number:    weekIdx + 1,
-      day_type:       day.type,
-      exercise_name:  ex.name,
-      set_number:     setIdx + 1,
-      weight_lbs:     weight !== '' ? parseFloat(weight)   : null,
-      reps_completed: reps   !== '' ? parseInt(reps, 10)   : null,
-      rpe_actual:     rpe    !== '' ? parseFloat(rpe)      : null,
-    };
+    const payload = buildPayload(ex, setIdx + 1, data);
     const { error } = await supabase.from('workout_logs').insert(payload);
     setSavingIdx(null);
     if (error) return false;
-    setLogData((prev) => ({ ...prev, [exIdx]: { sets: [...(prev[exIdx]?.sets ?? []), { set_number: setIdx + 1, weight_lbs: weight, reps_completed: reps, rpe_actual: rpe, saved: true }] } }));
+    const record = buildSavedSetRecord(ex, setIdx + 1, data);
+    setLogData((prev) => ({ ...prev, [exIdx]: { sets: [...(prev[exIdx]?.sets ?? []), record] } }));
     setActiveSets((prev) => ({ ...prev, [exIdx]: setIdx + 1 }));
     return true;
   }
@@ -911,21 +1036,12 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
   async function handleSaveAll(exIdx, rows) {
     setSavingIdx(exIdx);
     const ex = exercises[exIdx];
-    const inserts = rows.map((row, i) => ({
-      user_id:        user.id,
-      cycle_id:       cycle.id,
-      week_number:    weekIdx + 1,
-      day_type:       day.type,
-      exercise_name:  ex.name,
-      set_number:     i + 1,
-      weight_lbs:     row.weight !== '' ? parseFloat(row.weight) : null,
-      reps_completed: row.reps   !== '' ? parseInt(row.reps, 10) : null,
-      rpe_actual:     row.rpe    !== '' ? parseFloat(row.rpe)    : null,
-    }));
+    const inserts = rows.map((row, i) => buildPayload(ex, i + 1, row));
     const { error } = await supabase.from('workout_logs').insert(inserts);
     setSavingIdx(null);
     if (error) return false;
-    setLogData((prev) => ({ ...prev, [exIdx]: { sets: rows.map((row, i) => ({ set_number: i + 1, weight_lbs: row.weight, reps_completed: row.reps, rpe_actual: row.rpe, saved: true })) } }));
+    const records = rows.map((row, i) => buildSavedSetRecord(ex, i + 1, row));
+    setLogData((prev) => ({ ...prev, [exIdx]: { sets: records } }));
     setActiveSets((prev) => ({ ...prev, [exIdx]: exercises[exIdx]?.sets ?? 3 }));
     return true;
   }
@@ -937,9 +1053,13 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
   useEffect(() => {
     if (!allLogged || summary) return;
     let vol = 0, rpeSum = 0, rpeCount = 0;
-    Object.values(logData).forEach(({ sets }) => {
-      sets.forEach((s) => {
-        if (s.weight_lbs && s.reps_completed) vol += parseFloat(s.weight_lbs) * parseInt(s.reps_completed, 10);
+    exercises.forEach((ex, idx) => {
+      const tt = getTrackingType(ex);
+      (logData[idx]?.sets ?? []).forEach((s) => {
+        // Only count volume for weighted exercises
+        if (tt === 'reps' && s.weight_lbs && s.reps_completed) {
+          vol += parseFloat(s.weight_lbs) * parseInt(s.reps_completed, 10);
+        }
         if (s.rpe_actual && s.rpe_actual !== '') { rpeSum += parseFloat(s.rpe_actual); rpeCount++; }
       });
     });

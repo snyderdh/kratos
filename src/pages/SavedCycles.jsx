@@ -25,7 +25,7 @@ export default function SavedCycles() {
     setLoading(true);
     const { data, error: err } = await supabase
       .from('cycles')
-      .select('id, title, split, cycle_length, days_per_week, goals, equipment, is_public, created_at')
+      .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     setLoading(false);
@@ -47,11 +47,12 @@ export default function SavedCycles() {
     if (err) {
       setError('Failed to load cycle: ' + err.message);
     } else {
+      const weeks = data.weeks ?? [];
       setActiveCycle({
         ...data,
         splitLabel: getSplitLabel(data.split),
-        cycleLength: data.cycle_length,
-        daysPerWeek: data.days_per_week,
+        cycleLength: data.cycle_length ?? data.cycleLength ?? weeks.length,
+        daysPerWeek: data.days_per_week ?? data.daysPerWeek ?? (weeks[0]?.days?.filter((d) => !d.isRest).length ?? 0),
       });
     }
   }
@@ -135,8 +136,8 @@ export default function SavedCycles() {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.45rem' }}>
                   <span style={{ ...tagBase }}>{getSplitLabel(c.split)}</span>
-                  <span style={{ ...tagBase }}>{c.cycle_length} weeks</span>
-                  <span style={{ ...tagBase }}>{c.days_per_week}×/week</span>
+                  <span style={{ ...tagBase }}>{c.cycle_length ?? c.cycleLength ?? (c.weeks?.length ?? '?')} weeks</span>
+                  <span style={{ ...tagBase }}>{c.days_per_week ?? c.daysPerWeek ?? (c.weeks?.[0]?.days?.filter((d) => !d.isRest).length ?? '?')}×/week</span>
                   {(c.goals ?? []).map((g) => (
                     <span key={g} style={{ ...tagBase, textTransform: 'capitalize' }}>{g}</span>
                   ))}

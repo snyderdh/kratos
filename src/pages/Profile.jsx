@@ -11,6 +11,14 @@ const FITNESS_GOALS = [
   { value: 'mobility', label: 'Mobility' },
 ];
 
+const TRAINING_PHILOSOPHIES = [
+  { value: 'powerlifting',           label: 'Powerlifting',              desc: 'Max strength, low reps (3-5), long rest — compound-first' },
+  { value: 'bodybuilding',           label: 'Bodybuilding',              desc: 'Hypertrophy focus, moderate reps, A1/A2 supersets' },
+  { value: 'athletic_performance',   label: 'Athletic Performance',      desc: 'Power + strength, explosive compound-first' },
+  { value: 'general_fitness',        label: 'General Fitness',           desc: 'Balanced, accessible, moderate intensity' },
+  { value: 'endurance_conditioning', label: 'Endurance / Conditioning',  desc: 'High reps, short rest, conditioning circuits' },
+];
+
 export default function Profile() {
   const { user, profile, refreshProfile } = useAuth();
   const fileInputRef = useRef(null);
@@ -21,6 +29,7 @@ export default function Profile() {
   const [bio, setBio] = useState('');
   const [gym, setGym] = useState('');
   const [fitnessGoals, setFitnessGoals] = useState([]);
+  const [trainingPhilosophy, setTrainingPhilosophy] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarFile, setAvatarFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -37,6 +46,7 @@ export default function Profile() {
     setBio(profile.bio || '');
     setGym(profile.gym || '');
     setFitnessGoals(Array.isArray(profile.fitness_goals) ? profile.fitness_goals : []);
+    setTrainingPhilosophy(profile.training_philosophy || '');
     setAvatarUrl(profile.avatar_url || '');
   }, [profile]);
 
@@ -85,6 +95,7 @@ export default function Profile() {
       bio: bio || null,
       gym: gym || null,
       fitness_goals: fitnessGoals,
+      training_philosophy: trainingPhilosophy || null,
       avatar_url: avatarUrl || null,
     }).eq('id', user.id);
 
@@ -318,6 +329,57 @@ export default function Profile() {
                   }}
                 >
                   {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Training Philosophy */}
+        <div>
+          <label style={labelBase}>Training Philosophy</label>
+          <p style={{ fontSize: '0.78rem', color: C.textSecondary, marginBottom: '0.75rem', fontWeight: 300, lineHeight: 1.5 }}>
+            Determines set/rep schemes, rest periods, and RPE targets in your generated routines.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {TRAINING_PHILOSOPHIES.map(({ value, label, desc }) => {
+              const active = trainingPhilosophy === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setTrainingPhilosophy(value)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.875rem',
+                    padding: '0.875rem 1rem',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${active ? C.accent : C.border}`,
+                    backgroundColor: active ? C.accentMuted : C.bg,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseOver={(e) => { if (!active) { e.currentTarget.style.borderColor = `${C.accent}80`; } }}
+                  onMouseOut={(e) => { if (!active) { e.currentTarget.style.borderColor = C.border; } }}
+                >
+                  <div style={{
+                    width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0, marginTop: '2px',
+                    border: `2px solid ${active ? C.accent : C.border}`,
+                    backgroundColor: active ? C.accent : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                  }}>
+                    {active && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fff' }} />}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 400, fontSize: '0.9rem', color: active ? C.accent : C.text, marginBottom: '0.2rem' }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.4 }}>
+                      {desc}
+                    </div>
+                  </div>
                 </button>
               );
             })}

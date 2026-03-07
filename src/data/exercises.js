@@ -1,4 +1,7 @@
-// 40+ exercise database
+// 86 exercise database with tier, movementPattern, and explosive fields
+// tier: 1=primary compound, 2=secondary compound, 3=isolation
+// movementPattern: squat|hinge|push|pull|carry|rotation|isometric|isolation
+// explosive: true only for KB Swing and KB Clean and Press
 export const exercises = [
   // CHEST
   {
@@ -10,6 +13,9 @@ export const exercises = [
     description: 'Lie on a flat bench and press a barbell from chest to full arm extension.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 1,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 2,
@@ -20,6 +26,9 @@ export const exercises = [
     description: 'Press a barbell on an inclined bench to target upper chest.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 1,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 3,
@@ -30,6 +39,9 @@ export const exercises = [
     description: 'Lie flat and arc dumbbells in a wide motion to stretch and contract the chest.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['shoulders'],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 4,
@@ -40,6 +52,9 @@ export const exercises = [
     description: 'Press dumbbells from chest height to full extension on a flat bench.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 5,
@@ -50,6 +65,9 @@ export const exercises = [
     description: 'Classic bodyweight push-up targeting chest, triceps, and shoulders.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders', 'core'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 6,
@@ -60,6 +78,9 @@ export const exercises = [
     description: 'Use cable machine to perform fly motion with constant tension on chest.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['shoulders'],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 7,
@@ -70,6 +91,9 @@ export const exercises = [
     description: 'Press a barbell on a declined bench targeting the lower chest.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps'],
+    tier: 1,
+    movementPattern: 'push',
+    explosive: false,
   },
   // BACK
   {
@@ -81,6 +105,9 @@ export const exercises = [
     description: 'Pull a loaded barbell from the floor to hip level. King of back exercises.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['legs', 'core', 'shoulders'],
+    tier: 1,
+    movementPattern: 'hinge',
+    explosive: false,
   },
   {
     id: 9,
@@ -91,6 +118,9 @@ export const exercises = [
     description: 'Hinge at the hips and row a barbell to your torso.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps', 'core'],
+    tier: 1,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 10,
@@ -101,6 +131,9 @@ export const exercises = [
     description: 'Hang from a bar and pull your chin above it using back and biceps.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps', 'core'],
+    tier: 1,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 11,
@@ -111,6 +144,9 @@ export const exercises = [
     description: 'Row a dumbbell to your hip with one hand braced on a bench.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 12,
@@ -121,6 +157,9 @@ export const exercises = [
     description: 'Pull a wide bar down to your upper chest using a cable machine.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 13,
@@ -131,6 +170,9 @@ export const exercises = [
     description: 'Sit at a cable station and row the handle to your torso.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps', 'core'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 14,
@@ -141,6 +183,9 @@ export const exercises = [
     description: 'Lie under a bar and row your chest up to it using only your bodyweight.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps', 'core'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   // LEGS
   {
@@ -152,6 +197,9 @@ export const exercises = [
     description: 'Place a barbell on your upper back and squat to parallel or below.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core', 'back'],
+    tier: 1,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 16,
@@ -162,6 +210,9 @@ export const exercises = [
     description: 'Hinge at the hips with slight knee bend to target hamstrings and glutes.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['back', 'core'],
+    tier: 1,
+    movementPattern: 'hinge',
+    explosive: false,
   },
   {
     id: 17,
@@ -172,6 +223,9 @@ export const exercises = [
     description: 'Step forward into a lunge holding dumbbells at your sides.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 18,
@@ -182,6 +236,9 @@ export const exercises = [
     description: 'Hold a dumbbell at chest level and squat to depth.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 19,
@@ -192,6 +249,9 @@ export const exercises = [
     description: 'Classic air squat targeting quads, glutes, and hamstrings.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 20,
@@ -202,6 +262,9 @@ export const exercises = [
     description: 'Rear foot elevated split squat — brutal unilateral leg exercise.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 21,
@@ -212,6 +275,9 @@ export const exercises = [
     description: 'Use a low cable pulley to perform a leg extension/press movement.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 22,
@@ -222,6 +288,9 @@ export const exercises = [
     description: 'Drive your hips upward with a barbell across your lap for glute development.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'hinge',
+    explosive: false,
   },
   // SHOULDERS
   {
@@ -233,6 +302,9 @@ export const exercises = [
     description: 'Press a barbell from shoulder height to full overhead extension.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['triceps', 'core'],
+    tier: 1,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 24,
@@ -243,6 +315,9 @@ export const exercises = [
     description: 'Raise dumbbells out to your sides to isolate the lateral deltoid.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 25,
@@ -253,6 +328,9 @@ export const exercises = [
     description: 'Press dumbbells overhead from shoulder level seated or standing.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['triceps'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 26,
@@ -263,6 +341,9 @@ export const exercises = [
     description: 'Push-up with hips raised in a pike position targeting shoulders.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['triceps'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 27,
@@ -273,6 +354,9 @@ export const exercises = [
     description: 'Pull a rope attachment to your face targeting rear delts and rotator cuff.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['back'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 28,
@@ -283,6 +367,9 @@ export const exercises = [
     description: 'Pull a barbell up along your torso to chin height for shoulder width.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['back'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   // ARMS
   {
@@ -294,6 +381,9 @@ export const exercises = [
     description: 'Curl a barbell from hip level to shoulder height for bicep mass.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 30,
@@ -304,6 +394,9 @@ export const exercises = [
     description: 'Curl with a neutral (hammer) grip to target brachialis and biceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 31,
@@ -314,6 +407,9 @@ export const exercises = [
     description: 'Dip down between parallel bars to target triceps and chest.',
     primaryMuscles: ['arms'],
     secondaryMuscles: ['chest', 'shoulders'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 32,
@@ -324,6 +420,9 @@ export const exercises = [
     description: 'Push-up with hands forming a diamond shape to isolate triceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: ['chest'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 33,
@@ -334,6 +433,9 @@ export const exercises = [
     description: 'Push a bar or rope attachment down from chest height to isolate triceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 34,
@@ -344,6 +446,9 @@ export const exercises = [
     description: 'Curl a cable attachment to provide constant tension on biceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 35,
@@ -354,6 +459,9 @@ export const exercises = [
     description: 'Lower dumbbells toward your forehead lying on a bench to work triceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   // CORE
   {
@@ -365,6 +473,9 @@ export const exercises = [
     description: 'Hold a rigid plank position on forearms or hands to build core stability.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['shoulders'],
+    tier: 3,
+    movementPattern: 'isometric',
+    explosive: false,
   },
   {
     id: 37,
@@ -375,6 +486,9 @@ export const exercises = [
     description: 'Hang from a pull-up bar and raise your legs to 90 degrees or higher.',
     primaryMuscles: ['core'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 38,
@@ -385,6 +499,9 @@ export const exercises = [
     description: 'Rotate your torso pulling a cable in a diagonal chopping motion.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['shoulders', 'back'],
+    tier: 3,
+    movementPattern: 'rotation',
+    explosive: false,
   },
   {
     id: 39,
@@ -395,6 +512,9 @@ export const exercises = [
     description: 'Roll an ab wheel from kneeling position to full extension and back.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['shoulders', 'back'],
+    tier: 3,
+    movementPattern: 'isometric',
+    explosive: false,
   },
   {
     id: 40,
@@ -405,6 +525,9 @@ export const exercises = [
     description: 'Anchor a barbell in a corner and rotate it side to side for rotational core work.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['shoulders', 'back'],
+    tier: 3,
+    movementPattern: 'rotation',
+    explosive: false,
   },
   {
     id: 41,
@@ -415,6 +538,9 @@ export const exercises = [
     description: 'Hold a dumbbell and bend sideways to target the obliques.',
     primaryMuscles: ['core'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 42,
@@ -425,6 +551,9 @@ export const exercises = [
     description: 'In push-up position, alternate driving knees to chest rapidly.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['legs', 'shoulders'],
+    tier: 3,
+    movementPattern: 'isometric',
+    explosive: false,
   },
   {
     id: 43,
@@ -435,6 +564,9 @@ export const exercises = [
     description: 'Hold a barbell in front rack position and squat for quad dominance.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core', 'shoulders'],
+    tier: 1,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 44,
@@ -445,6 +577,9 @@ export const exercises = [
     description: 'Hinge at hips holding dumbbells to target hamstrings and glutes.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['back', 'core'],
+    tier: 2,
+    movementPattern: 'hinge',
+    explosive: false,
   },
   {
     id: 45,
@@ -455,6 +590,9 @@ export const exercises = [
     description: 'Curl dumbbells on an incline bench for full bicep stretch.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
 
   // ── MACHINES ─────────────────────────────────────────────────────────────
@@ -468,6 +606,9 @@ export const exercises = [
     description: 'Seated machine that guides a pressing motion targeting the chest, triceps, and front delts.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 47,
@@ -478,6 +619,9 @@ export const exercises = [
     description: 'Seated fly machine that provides constant tension across the chest at peak contraction.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['shoulders'],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 48,
@@ -488,6 +632,9 @@ export const exercises = [
     description: 'Counter-weighted dip machine to progressively build chest and tricep strength.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 70,
@@ -498,6 +645,9 @@ export const exercises = [
     description: 'Bench press on a guided barbell track for safe heavy pressing without a spotter.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   // Back
   {
@@ -509,6 +659,9 @@ export const exercises = [
     description: 'Selectorized machine for pulling a bar down to the chest to engage the lats fully.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 50,
@@ -519,6 +672,9 @@ export const exercises = [
     description: 'Chest-supported row machine that isolates the mid-back without lower back strain.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 51,
@@ -529,6 +685,9 @@ export const exercises = [
     description: 'Counter-weighted machine to build full pull-up strength progressively.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps', 'core'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 52,
@@ -539,6 +698,9 @@ export const exercises = [
     description: 'Seated machine that isolates the lower back through extension against resistance.',
     primaryMuscles: ['back'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   // Legs
   {
@@ -550,6 +712,9 @@ export const exercises = [
     description: 'Push a weighted platform away using your legs to target quads, hamstrings, and glutes.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 54,
@@ -560,6 +725,9 @@ export const exercises = [
     description: 'Extend your legs against a padded roller to isolate the quadriceps.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 55,
@@ -570,6 +738,9 @@ export const exercises = [
     description: 'Curl your legs downward against resistance to isolate the hamstrings while seated.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 56,
@@ -580,6 +751,9 @@ export const exercises = [
     description: 'Lie face-down and curl a padded roller upward to target the hamstrings.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 57,
@@ -590,6 +764,9 @@ export const exercises = [
     description: 'Push legs outward against resistance to target the glutes and outer thighs.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 58,
@@ -600,6 +777,9 @@ export const exercises = [
     description: 'Squeeze legs together against resistance to target the inner thighs.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 59,
@@ -610,6 +790,9 @@ export const exercises = [
     description: 'Perform calf raises on a seated or standing machine for isolated calf development.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 60,
@@ -620,6 +803,9 @@ export const exercises = [
     description: 'Squat on an angled sled to target the quads with reduced lower back stress.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 69,
@@ -630,6 +816,9 @@ export const exercises = [
     description: 'Squat on a guided barbell track for added stability and safety versus free bar.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core', 'back'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   // Shoulders
   {
@@ -641,6 +830,9 @@ export const exercises = [
     description: 'Seated machine that guides an overhead press to target all three deltoid heads.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['triceps'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 62,
@@ -651,6 +843,9 @@ export const exercises = [
     description: 'Pads against the forearms to isolate the lateral deltoids through arm abduction.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   // Arms
   {
@@ -662,6 +857,9 @@ export const exercises = [
     description: 'Seated machine with constant tension and a guided path for bicep curls.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 64,
@@ -672,6 +870,9 @@ export const exercises = [
     description: 'Seated overhead or pushdown machine that isolates the triceps through full extension.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 65,
@@ -682,6 +883,9 @@ export const exercises = [
     description: 'Angled pad supports your upper arms while you curl to fully isolate the biceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   // Core
   {
@@ -693,6 +897,9 @@ export const exercises = [
     description: 'Seated machine that adds weighted resistance through a controlled crunching motion.',
     primaryMuscles: ['core'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 67,
@@ -703,6 +910,9 @@ export const exercises = [
     description: 'Seated machine for rotational core work targeting the obliques through controlled twisting.',
     primaryMuscles: ['core'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'rotation',
+    explosive: false,
   },
   {
     id: 68,
@@ -713,6 +923,9 @@ export const exercises = [
     description: 'Hang from padded elbow rests and raise your knees or legs to target abs and hip flexors.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['legs'],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
 
   // ── KETTLEBELLS ───────────────────────────────────────────────────────────
@@ -725,6 +938,9 @@ export const exercises = [
     description: 'Hip hinge to swing a kettlebell to chest height using explosive hip drive.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['back', 'core'],
+    tier: 2,
+    movementPattern: 'hinge',
+    explosive: true,
   },
   {
     id: 72,
@@ -735,6 +951,9 @@ export const exercises = [
     description: 'Hold a kettlebell at chest level and squat to depth for quad and glute development.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 73,
@@ -745,6 +964,9 @@ export const exercises = [
     description: 'Clean a kettlebell to the rack position then press overhead for full-body coordination.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['legs', 'core'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: true,
   },
   {
     id: 74,
@@ -755,6 +977,9 @@ export const exercises = [
     description: 'Full-body movement from lying to standing while holding a kettlebell overhead.',
     primaryMuscles: ['core'],
     secondaryMuscles: ['shoulders', 'legs'],
+    tier: 1,
+    movementPattern: 'isometric',
+    explosive: false,
   },
   {
     id: 75,
@@ -765,6 +990,9 @@ export const exercises = [
     description: 'Hinge and row a kettlebell to your hip with one hand for lat and rhomboid development.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 76,
@@ -775,6 +1003,9 @@ export const exercises = [
     description: 'Hip hinge to lift a kettlebell from the floor, targeting hamstrings, glutes, and back.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['back', 'core'],
+    tier: 2,
+    movementPattern: 'hinge',
+    explosive: false,
   },
   {
     id: 84,
@@ -785,6 +1016,9 @@ export const exercises = [
     description: 'Circle a kettlebell around your head to build shoulder stability and mobility.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['core'],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
 
   // ── RESISTANCE BANDS ─────────────────────────────────────────────────────
@@ -797,6 +1031,9 @@ export const exercises = [
     description: 'Pull a resistance band apart at shoulder height to target rear delts and upper back.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['back'],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 78,
@@ -807,6 +1044,9 @@ export const exercises = [
     description: 'Squat with a resistance band around your thighs to activate glutes and improve knee tracking.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['core'],
+    tier: 2,
+    movementPattern: 'squat',
+    explosive: false,
   },
   {
     id: 79,
@@ -817,6 +1057,9 @@ export const exercises = [
     description: 'Stand on a resistance band and curl the handles to target the biceps with constant tension.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 80,
@@ -827,6 +1070,9 @@ export const exercises = [
     description: 'Anchor a band overhead and push it down to isolate the triceps.',
     primaryMuscles: ['arms'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 81,
@@ -837,6 +1083,9 @@ export const exercises = [
     description: 'Walk sideways with a band around ankles or knees to activate glutes and hip abductors.',
     primaryMuscles: ['legs'],
     secondaryMuscles: [],
+    tier: 3,
+    movementPattern: 'isolation',
+    explosive: false,
   },
   {
     id: 82,
@@ -847,6 +1096,9 @@ export const exercises = [
     description: 'Anchor a band behind you and press forward to target chest and triceps.',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
+    tier: 2,
+    movementPattern: 'push',
+    explosive: false,
   },
   {
     id: 83,
@@ -857,6 +1109,9 @@ export const exercises = [
     description: 'Anchor a band in front and row toward your torso for upper back and bicep development.',
     primaryMuscles: ['back'],
     secondaryMuscles: ['biceps'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 85,
@@ -867,6 +1122,9 @@ export const exercises = [
     description: 'Anchor a band at face height and pull toward your forehead to target rear delts.',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['back'],
+    tier: 2,
+    movementPattern: 'pull',
+    explosive: false,
   },
   {
     id: 86,
@@ -877,6 +1135,9 @@ export const exercises = [
     description: 'Stand on a resistance band and perform a hip hinge to target glutes and hamstrings.',
     primaryMuscles: ['legs'],
     secondaryMuscles: ['back', 'core'],
+    tier: 2,
+    movementPattern: 'hinge',
+    explosive: false,
   },
 ];
 

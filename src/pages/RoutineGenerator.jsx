@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { generateSingleDayRoutine, getAlternativeExercises, getBlendConfig } from '../utils/routineGenerator';
+import {
+  generateAdvancedRoutine,
+  getAlternativeExercises,
+  getBlendConfig,
+} from '../utils/routineGenerator';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { C, FONTS, card, btnPrimary, inputBase, labelBase, tagBase } from '../theme';
@@ -32,8 +36,6 @@ const MUSCLES = [
   { value: 'core',      label: 'Core' },
 ];
 
-const COUNT_OPTIONS = ['recommended', 3, 4, 5, 6, 7, 8];
-
 const TIME_LIMITS = [
   { value: 'no-limit', label: 'No limit' },
   { value: '30',       label: '30 min' },
@@ -43,150 +45,48 @@ const TIME_LIMITS = [
   { value: '90',       label: '90 min' },
 ];
 
+const PHASE_COLORS = {
+  primary:     { border: '#C2622A', bg: '#F5EDE6', text: '#C2622A' },
+  secondary:   { border: '#2563eb', bg: '#eff6ff', text: '#2563eb' },
+  accessory:   { border: '#16a34a', bg: '#f0fdf4', text: '#16a34a' },
+  intensifier: { border: '#9333ea', bg: '#faf5ff', text: '#9333ea' },
+  core:        { border: '#6b7280', bg: '#f9fafb', text: '#6b7280' },
+};
+
+const PHASE_SHORT_LABELS = {
+  primary:     'Primary',
+  secondary:   'Secondary',
+  accessory:   'Accessory',
+  intensifier: 'Intensifier',
+  core:        'Core',
+};
+
+const SET_STRUCTURE_LABELS = {
+  pyramid:   'PYRAMID',
+  superset:  'SUPERSET',
+  drop:      'DROP SET',
+  straight:  'STRAIGHT',
+};
+
+const RPE_DESCRIPTIONS = {
+  6:   'Light effort — could do 4+ more reps. Warm-up / technique work.',
+  6.5: 'Moderate — could do 3-4 more reps. Sustainable for high reps.',
+  7:   'Moderate-hard — could do 3 more reps. Solid working weight.',
+  7.5: 'Hard — could do 2-3 more reps. Strong training stimulus.',
+  8:   'Hard — could do 2 more reps. Good strength/hypertrophy range.',
+  8.5: 'Very hard — could do 1-2 more reps. Near-maximal intensity.',
+  9:   'Near-max — 1 rep in reserve. Limit sessions at this level.',
+  9.5: 'Maximal — 1 rep left. Full recovery required before repeating.',
+  10:  'True max — all-out effort. Use drop sets / finishers only.',
+};
+
 const accent = C.accent;
-const sage = '#6B8F71';
 
 const difficultyBadge = {
   beginner:     { bg: '#EDF2EE', text: '#4A7C59' },
   intermediate: { bg: '#F2EFE8', text: '#7A6040' },
   advanced:     { bg: '#F2ECEC', text: '#8B4040' },
 };
-
-// ── Recommendation logic ──────────────────────────────────────────────────
-const GOAL_BASE = { strength: 4.5, power: 4.5, hypertrophy: 5.5, endurance: 7 };
-
-function calculateRecommended(goals, muscleGroups, timeLimit) {
-  const mainGoals = goals.filter((g) => g !== 'mobility');
-  let base;
-  if (mainGoals.length === 0) {
-    base = 4;
-  } else {
-    const sum = mainGoals.reduce((s, g) => s + (GOAL_BASE[g] ?? 5), 0);
-    base = Math.round(sum / mainGoals.length);
-  }
-  const mgCount = muscleGroups.length;
-  if (mgCount <= 2) base = Math.max(3, base - 1);
-  else if (mgCount >= 5) base = Math.min(8, base + 1);
-  base = Math.max(3, Math.min(8, base));
-  if (timeLimit !== 'no-limit') {
-    const blendConfig = getBlendConfig(goals);
-    const maxEx = maxExercisesForLimit(parseInt(timeLimit), blendConfig, goals.includes('mobility'));
-    base = Math.min(base, Math.max(1, maxEx));
-  }
-  return base;
-}
-
-function recommendationReason(goals, muscleGroups, timeLimit, count) {
-  const mainGoals = goals.filter((g) => g !== 'mobility');
-  const goalStr = mainGoals.length === 0
-    ? 'Mobility'
-    : mainGoals.map((g) => g.charAt(0).toUpperCase() + g.slice(1)).join(' + ');
-  const mgStr = `${muscleGroups.length} muscle group${muscleGroups.length !== 1 ? 's' : ''}`;
-  const timeStr = timeLimit !== 'no-limit' ? ` in ${timeLimit} min` : '';
-  return `${count} exercises recommended for ${goalStr} across ${mgStr}${timeStr}`;
-}
-
-// ── Time estimation helpers ───────────────────────────────────────────────
-const WARMUP_BUFFER_MIN = 3;
-const COOLDOWN_BUFFER_MIN = 3;
-const TRANSITION_MIN = 1; // between exercise slots
-
-function parseAvgReps(repsStr) {
-  const s = String(repsStr ?? '10');
-  if (s.endsWith('s')) return 10;
-  if (s.includes('-')) {
-    const [lo, hi] = s.split('-').map(Number);
-    return (lo + hi) / 2;
-  }
-  return Number(s) || 10;
-}
-
-function parseRestSec(restStr) {
-  return parseInt(String(restStr ?? '60')) || 60;
-}
-
-// Select realistic sec-per-rep based on rest period:
-//   ≥150s rest → strength/power (4 sec/rep, slow heavy reps)
-//   ≥75s rest  → hypertrophy (3 sec/rep, controlled tempo)
-//   <75s rest  → endurance (2 sec/rep, faster reps)
-function secPerRepFromRest(restSec, isMobility) {
-  if (isMobility) return 2;
-  if (restSec >= 150) return 4;
-  if (restSec >= 75) return 3;
-  return 2;
-}
-
-function estimateExerciseMinutes(ex) {
-  const sets = Number(ex.sets) || 3;
-  const restSec = parseRestSec(ex.rest);
-  const spr = secPerRepFromRest(restSec, ex.isMobility);
-  const workSec = sets * parseAvgReps(ex.reps) * spr;
-  const totalRestSec = (sets - 1) * restSec;
-  return (workSec + totalRestSec) / 60;
-}
-
-function estimateSupersetMinutes(exList) {
-  const sets = Number(exList[0]?.sets) || 3;
-  const restSec = parseRestSec(exList[0]?.rest);
-  const spr = secPerRepFromRest(restSec, false);
-  const workSec = exList.reduce((s, ex) => s + sets * parseAvgReps(ex.reps) * spr, 0);
-  const totalRestSec = (sets - 1) * restSec;
-  return (workSec + totalRestSec) / 60;
-}
-
-// Count distinct exercise "slots" (supersets count as 1 slot)
-function countExerciseSlots(exercises) {
-  let slots = 0;
-  let i = 0;
-  while (i < exercises.length) {
-    const ex = exercises[i];
-    if (ex.supersetGroup) {
-      const label = ex.supersetGroup;
-      while (i < exercises.length && exercises[i].supersetGroup === label) i++;
-      slots++;
-    } else {
-      slots++;
-      i++;
-    }
-  }
-  return slots;
-}
-
-function estimateTotalMinutes(exercises) {
-  let exerciseMin = 0;
-  let slots = 0;
-  let i = 0;
-  while (i < exercises.length) {
-    const ex = exercises[i];
-    if (ex.supersetGroup) {
-      const label = ex.supersetGroup;
-      const group = [];
-      while (i < exercises.length && exercises[i].supersetGroup === label) {
-        group.push(exercises[i++]);
-      }
-      exerciseMin += estimateSupersetMinutes(group);
-      slots++;
-    } else {
-      exerciseMin += estimateExerciseMinutes(ex);
-      slots++;
-      i++;
-    }
-  }
-  const transitionMin = Math.max(0, slots - 1) * TRANSITION_MIN;
-  return WARMUP_BUFFER_MIN + exerciseMin + transitionMin + COOLDOWN_BUFFER_MIN;
-}
-
-function maxExercisesForLimit(limitMin, blendConfig, hasMobility) {
-  const sets = blendConfig.sets;
-  const restSec = blendConfig.restSeconds;
-  const spr = secPerRepFromRest(restSec, false);
-  const workSec = sets * parseAvgReps(blendConfig.reps) * spr;
-  const totalRestSec = (sets - 1) * restSec;
-  // Per-exercise time + 1 min transition between each
-  const minutesPerEx = (workSec + totalRestSec) / 60 + TRANSITION_MIN;
-  const overhead = WARMUP_BUFFER_MIN + COOLDOWN_BUFFER_MIN + (hasMobility ? 4 : 0);
-  return Math.max(1, Math.floor((limitMin - overhead) / minutesPerEx));
-}
 
 function isEdited(ex) {
   if (!ex._defaults) return false;
@@ -195,36 +95,6 @@ function isEdited(ex) {
     ex.reps !== ex._defaults.reps ||
     ex.rest !== ex._defaults.rest
   );
-}
-
-function groupExercises(exercises) {
-  const groups = [];
-  let i = 0;
-  while (i < exercises.length) {
-    const ex = exercises[i];
-    if (ex.supersetGroup) {
-      const label = ex.supersetGroup;
-      const items = [];
-      while (i < exercises.length && exercises[i].supersetGroup === label) {
-        items.push({ exercise: exercises[i], flatIndex: i });
-        i++;
-      }
-      groups.push({ type: 'superset', label, items });
-    } else {
-      groups.push({ type: 'single', exercise: ex, flatIndex: i });
-      i++;
-    }
-  }
-  return groups;
-}
-
-function computeLabels(exercises) {
-  let warmup = 0;
-  let main = 0;
-  return exercises.map((ex) => {
-    if (ex.isMobility) return { label: `Warm-up #${++warmup}`, color: sage };
-    return { label: `Exercise #${++main}`, color: accent };
-  });
 }
 
 // ── Inline editable field ─────────────────────────────────────────────────
@@ -260,12 +130,6 @@ function EditableField({ value, onChange, type = 'text', width = '52px', fontSiz
 
 // ── Replace modal ─────────────────────────────────────────────────────────
 function ReplaceModal({ exerciseName, alternatives, onSelect, onClose }) {
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
     <div
       onClick={onClose}
@@ -342,18 +206,23 @@ function ReplaceModal({ exerciseName, alternatives, onSelect, onClose }) {
 
 // ── Main component ────────────────────────────────────────────────────────
 export default function RoutineGenerator() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { state: navState } = useLocation();
   const [goals, setGoals] = useState(navState?.goals ?? ['hypertrophy']);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
   const [muscleGroups, setMuscleGroups] = useState(navState?.muscleGroups ?? ['chest', 'back', 'legs', 'shoulders']);
-  const [exerciseCount, setExerciseCount] = useState('recommended');
   const [routine, setRoutine] = useState(null);
   const [error, setError] = useState('');
   const [sharePublic, setSharePublic] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [replaceModal, setReplaceModal] = useState(null);
   const [timeLimit, setTimeLimit] = useState('no-limit');
+  const [showWhyPanel, setShowWhyPanel] = useState(false);
+  const [openRPE, setOpenRPE] = useState(null);
+
+  // Recovery state
+  const [recoveryState, setRecoveryState] = useState(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   function toggleGoal(val) {
     setGoals((prev) => prev.includes(val) ? prev.filter((g) => g !== val) : [...prev, val]);
@@ -363,16 +232,45 @@ export default function RoutineGenerator() {
   }
   function toggleMuscle(val) {
     setMuscleGroups((prev) => prev.includes(val) ? prev.filter((m) => m !== val) : [...prev, val]);
+    setRecoveryState((prev) => prev ? { ...prev, conflictMuscles: [] } : null);
   }
 
-  function tagDefaults(exercises) {
-    return exercises.map((ex) => ({
-      ...ex,
-      _defaults: { sets: ex.sets, reps: ex.reps, rest: ex.rest },
-    }));
+  async function loadRecovery() {
+    if (!user) return null;
+    setRecoveryLoading(true);
+    try {
+      const { data } = await supabase
+        .from('routines')
+        .select('exercises, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      const now = Date.now();
+      const musclesInRecovery = new Set();
+      const excludedExerciseIds = new Set();
+
+      (data || []).forEach((row) => {
+        const hoursAgo = (now - new Date(row.created_at)) / 3600000;
+        (row.exercises || []).forEach((ex) => {
+          if (hoursAgo < 48) musclesInRecovery.add(ex.muscleGroup);
+          if (hoursAgo < 72) excludedExerciseIds.add(String(ex.id));
+        });
+      });
+
+      const result = {
+        musclesInRecovery: [...musclesInRecovery],
+        excludedExerciseIds: [...excludedExerciseIds],
+        conflictMuscles: [],
+      };
+      setRecoveryState(result);
+      return result;
+    } finally {
+      setRecoveryLoading(false);
+    }
   }
 
-  function handleGenerate() {
+  async function handleGenerate(override = false) {
     if (goals.length === 0) return setError('Select at least one training goal.');
     if (goals.length === 1 && goals[0] === 'mobility') {
       return setError('Add a training goal alongside Mobility (e.g. Strength, Hypertrophy).');
@@ -381,73 +279,83 @@ export default function RoutineGenerator() {
     if (muscleGroups.length === 0) return setError('Select at least one muscle group.');
     setError('');
     setSaveSuccess(false);
+    setShowWhyPanel(false);
+    setOpenRPE(null);
 
-    const targetCount = exerciseCount === 'recommended'
-      ? calculateRecommended(goals, muscleGroups, timeLimit)
-      : exerciseCount;
-
-    let effectiveCount = targetCount;
-    let wasAdjusted = false;
-    if (timeLimit !== 'no-limit') {
-      const limitMin = parseInt(timeLimit);
-      const blendConfig = getBlendConfig(goals);
-      const maxEx = maxExercisesForLimit(limitMin, blendConfig, goals.includes('mobility'));
-      if (maxEx < effectiveCount) {
-        effectiveCount = maxEx;
-        wasAdjusted = true;
-      }
+    let recovery = recoveryState;
+    if (!recovery && user) {
+      recovery = await loadRecovery();
     }
 
-    const result = generateSingleDayRoutine({ goals, equipment, muscleGroups, exerciseCount: effectiveCount });
-    const slots = countExerciseSlots(result.exercises);
-    const transitionMin = Math.max(0, slots - 1) * TRANSITION_MIN;
-    const totalMin = estimateTotalMinutes(result.exercises);
-    const exerciseMin = Math.round(totalMin - WARMUP_BUFFER_MIN - COOLDOWN_BUFFER_MIN - transitionMin);
-    const estimatedMin = Math.round(totalMin);
-    setRoutine({
-      ...result,
-      exercises: tagDefaults(result.exercises),
-      estimatedMin,
-      breakdown: {
-        warmup: WARMUP_BUFFER_MIN,
-        exercise: Math.max(1, exerciseMin),
-        transitions: transitionMin,
-        cooldown: COOLDOWN_BUFFER_MIN,
-      },
-      adjustedFrom: wasAdjusted ? exerciseCount : null,
-      adjustedTo: wasAdjusted ? effectiveCount : null,
-      timeLimitMin: timeLimit !== 'no-limit' ? parseInt(timeLimit) : null,
+    const conflictMuscles = !override && recovery
+      ? (recovery.musclesInRecovery || []).filter((m) => muscleGroups.includes(m))
+      : [];
+
+    if (conflictMuscles.length > 0) {
+      setRecoveryState((prev) => ({ ...(prev || {}), conflictMuscles }));
+      return;
+    }
+
+    if (recovery) {
+      setRecoveryState((prev) => ({ ...(prev || {}), conflictMuscles: [] }));
+    }
+
+    const excludedIds = override ? [] : (recovery?.excludedExerciseIds || []);
+    const philosophy = profile?.training_philosophy || 'general_fitness';
+    const durationLimit = timeLimit !== 'no-limit' ? parseInt(timeLimit) : null;
+
+    const result = generateAdvancedRoutine({
+      goals,
+      equipment,
+      muscleGroups,
+      philosophy,
+      durationLimit,
+      excludedExerciseIds: excludedIds,
     });
+
+    const taggedExercises = result.exercises.map((ex, idx) => ({
+      ...ex,
+      _flatIdx: idx,
+      _defaults: { sets: ex.sets, reps: ex.reps, rest: ex.rest },
+    }));
+
+    setRoutine({ ...result, exercises: taggedExercises });
+
     setTimeout(() => {
       document.getElementById('routine-output')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   }
 
-  function updateExerciseField(index, field, value) {
+  function updateExerciseField(flatIdx, field, value) {
     setRoutine((prev) => {
-      const updated = [...prev.exercises];
-      updated[index] = { ...updated[index], [field]: value };
+      const updated = prev.exercises.map((ex) =>
+        ex._flatIdx === flatIdx ? { ...ex, [field]: value } : ex
+      );
       return { ...prev, exercises: updated };
     });
   }
 
-  function handleOpenReplace(index) {
-    const ex = routine.exercises[index];
+  function handleOpenReplace(flatIdx) {
+    const ex = routine.exercises.find((e) => e._flatIdx === flatIdx);
     const excludeIds = routine.exercises.map((e) => e.id);
     const alternatives = getAlternativeExercises({ exercise: ex, equipment, excludeIds, goals });
-    setReplaceModal({ index, alternatives, exerciseName: ex.name });
+    setReplaceModal({ flatIdx, alternatives, exerciseName: ex.name });
   }
 
   function handleSelectReplacement(alternative) {
-    const { index } = replaceModal;
+    const { flatIdx } = replaceModal;
     setRoutine((prev) => {
-      const updated = [...prev.exercises];
-      const original = updated[index];
-      updated[index] = {
-        ...alternative,
-        supersetGroup: original.supersetGroup ?? null,
-        _defaults: { sets: alternative.sets, reps: alternative.reps, rest: alternative.rest },
-      };
+      const updated = prev.exercises.map((ex) => {
+        if (ex._flatIdx !== flatIdx) return ex;
+        return {
+          ...alternative,
+          phaseId: ex.phaseId,
+          _flatIdx: ex._flatIdx,
+          supersetGroup: ex.supersetGroup ?? null,
+          supersetLabel: ex.supersetLabel ?? null,
+          _defaults: { sets: alternative.sets, reps: alternative.reps, rest: alternative.rest },
+        };
+      });
       return { ...prev, exercises: updated };
     });
     setReplaceModal(null);
@@ -455,116 +363,305 @@ export default function RoutineGenerator() {
 
   async function handleSave() {
     if (!routine) return;
-    const exercises = routine.exercises.map(({ _defaults, ...ex }) => ex);
+    const cleanExercises = routine.exercises.map(({ _defaults, _flatIdx, warmupSets, ...ex }) => ex);
 
     const saved = (() => {
       try { return JSON.parse(localStorage.getItem('kratos-saved-routines') || '[]'); }
       catch { return []; }
     })();
-    const entry = { id: Date.now(), goal: routine.blendLabel, savedAt: new Date().toISOString(), exercises };
+    const entry = { id: Date.now(), goal: routine.blendLabel, savedAt: new Date().toISOString(), exercises: cleanExercises };
     localStorage.setItem('kratos-saved-routines', JSON.stringify([entry, ...saved]));
 
-    if (sharePublic && user) {
+    if (user) {
       const { error: dbErr } = await supabase.from('routines').insert({
         user_id: user.id,
         title: `${routine.blendLabel} Routine`,
-        exercises,
-        is_public: true,
+        exercises: cleanExercises,
+        is_public: sharePublic || false,
       });
-      if (dbErr) console.error('Failed to share to community:', dbErr);
+      if (dbErr) console.error('Failed to save to Supabase:', dbErr);
     }
 
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
   }
 
-  // ── Exercise card renderer ────────────────────────────────────────────
-  function renderCard(ex, flatIndex, numLabel, numColor, flat = false) {
+  // ── Exercise Card ─────────────────────────────────────────────────────
+  function renderExerciseCard(ex, flat = false) {
+    const flatIdx = ex._flatIdx;
+    const phaseColor = PHASE_COLORS[ex.phaseId] || PHASE_COLORS.accessory;
     const diff = ex.difficulty ? difficultyBadge[ex.difficulty] : difficultyBadge.beginner;
     const edited = isEdited(ex);
-    const isMob = ex.isMobility;
-    const accentColor = isMob ? sage : accent;
+    const rpeOpen = openRPE === flatIdx;
+    const isDropSet = ex.setStructure === 'drop';
+    const structureLabel = SET_STRUCTURE_LABELS[ex.setStructure] || '';
+    const displayName = ex.supersetLabel ? `${ex.supersetLabel} · ${ex.name}` : ex.name;
 
     return (
       <div
-        key={`${ex.id}-${flatIndex}`}
+        key={`${ex.id}-${flatIdx}`}
         style={{
           backgroundColor: C.surface,
           border: flat ? 'none' : `1px solid ${C.border}`,
-          borderLeft: `4px solid ${accentColor}`,
+          borderLeft: `4px solid ${phaseColor.border}`,
           borderRadius: flat ? 0 : '10px',
           padding: '1rem 1.25rem',
           boxShadow: flat ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
         }}
       >
-        {/* Top row: label + badges + replace button */}
+        {/* Top row: badges + action buttons */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 400, color: numColor, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                {numLabel}
+            {/* Phase badge row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.62rem', fontWeight: 500, color: phaseColor.text,
+                backgroundColor: phaseColor.bg,
+                border: `1px solid ${phaseColor.border}30`,
+                borderRadius: '20px', padding: '1px 7px',
+                textTransform: 'uppercase', letterSpacing: '0.5px',
+              }}>
+                {PHASE_SHORT_LABELS[ex.phaseId] || ex.phaseId}
               </span>
-              {isMob && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '0.65rem', fontWeight: 400, color: sage, backgroundColor: '#EDF2EE', border: `1px solid ${sage}`, borderRadius: '20px', padding: '1px 7px' }}>
-                  Warm-up
+              {structureLabel && (
+                <span style={{
+                  fontSize: '0.6rem', fontWeight: 500, color: phaseColor.text,
+                  border: `1px solid ${phaseColor.border}50`,
+                  borderRadius: '4px', padding: '1px 6px',
+                  letterSpacing: '0.5px',
+                }}>
+                  {structureLabel}
                 </span>
               )}
-              {edited && !isMob && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem', fontWeight: 400, color: accent, backgroundColor: C.accentMuted, border: `1px solid ${accent}`, borderRadius: '20px', padding: '1px 7px', letterSpacing: '0.3px' }}>
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: accent, display: 'inline-block', flexShrink: 0 }} />
+              {edited && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.62rem', fontWeight: 400, color: accent, backgroundColor: C.accentMuted, border: `1px solid ${accent}`, borderRadius: '20px', padding: '1px 7px' }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: accent, display: 'inline-block' }} />
                   edited
                 </span>
               )}
             </div>
-            <div style={{ fontWeight: 400, color: C.text, fontSize: '1rem', marginBottom: '0.4rem' }}>{ex.name}</div>
+            <div style={{ fontWeight: 400, color: C.text, fontSize: '1rem', marginBottom: '0.4rem' }}>{displayName}</div>
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               <span style={tagBase}>{ex.equipment}</span>
               <span style={tagBase}>{ex.muscleGroup}</span>
-              {!isMob && <span style={{ ...tagBase, backgroundColor: diff.bg, borderColor: diff.bg, color: diff.text }}>{ex.difficulty}</span>}
+              {ex.difficulty && <span style={{ ...tagBase, backgroundColor: diff.bg, borderColor: diff.bg, color: diff.text }}>{ex.difficulty}</span>}
             </div>
           </div>
 
-          {!isMob && (
-            <button
-              onClick={() => handleOpenReplace(flatIndex)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', borderRadius: '6px', border: `1px solid ${C.border}`, backgroundColor: C.bg, color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', flexShrink: 0 }}
-              onMouseOver={(e) => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.color = accent; e.currentTarget.style.backgroundColor = C.accentMuted; }}
-              onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.backgroundColor = C.bg; }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-              </svg>
-              Replace
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+            {/* RPE button */}
+            {ex.targetRPE != null && (
+              <button
+                onClick={() => setOpenRPE(rpeOpen ? null : flatIdx)}
+                title="RPE & movement cue"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0.3rem 0.6rem',
+                  borderRadius: '6px',
+                  border: `1px solid ${rpeOpen ? phaseColor.border : C.border}`,
+                  backgroundColor: rpeOpen ? phaseColor.bg : C.bg,
+                  color: rpeOpen ? phaseColor.text : C.textSecondary,
+                  fontSize: '0.72rem', fontWeight: rpeOpen ? 500 : 300, cursor: 'pointer',
+                  transition: 'all 0.15s', flexShrink: 0, gap: '0.2rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                RPE {ex.targetRPE} ⓘ
+              </button>
+            )}
+            {/* Replace button */}
+            {!isDropSet && (
+              <button
+                onClick={() => handleOpenReplace(flatIdx)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', borderRadius: '6px', border: `1px solid ${C.border}`, backgroundColor: C.bg, color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', flexShrink: 0 }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.color = accent; e.currentTarget.style.backgroundColor = C.accentMuted; }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.backgroundColor = C.bg; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                </svg>
+                Replace
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Warm-up sets (Phase 2 only) */}
+        {ex.warmupSets && ex.warmupSets.length > 0 && (
+          <div style={{
+            marginBottom: '0.75rem',
+            padding: '0.6rem 0.875rem',
+            backgroundColor: C.bg,
+            borderRadius: '6px',
+            border: `1px solid ${C.border}`,
+          }}>
+            <div style={{ fontSize: '0.62rem', fontWeight: 500, color: C.textSecondary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.4rem' }}>
+              Warm-up Sets (build to working weight)
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {ex.warmupSets.map((ws, i) => (
+                <span key={i} style={{ fontSize: '0.75rem', color: C.textSecondary, fontWeight: 300 }}>
+                  {ws.pct}% × {ws.reps}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Drop set note (Phase 5 only) */}
+        {isDropSet && ex.dropSetNote && (
+          <div style={{
+            marginBottom: '0.75rem',
+            padding: '0.5rem 0.875rem',
+            backgroundColor: '#faf5ff',
+            borderRadius: '6px',
+            border: '1px solid #9333ea30',
+            fontSize: '0.78rem', color: '#9333ea', fontWeight: 300, fontStyle: 'italic',
+          }}>
+            {ex.dropSetNote}
+          </div>
+        )}
 
         {/* Editable sets / reps / rest */}
         <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.75rem', borderTop: `1px solid ${C.border}` }}>
           <div style={fieldWrap}>
-            <EditableField type="number" value={ex.sets} onChange={(v) => updateExerciseField(flatIndex, 'sets', v)} color={accentColor} fontSize="1.15rem" />
+            <EditableField type="number" value={ex.sets} onChange={(v) => updateExerciseField(flatIdx, 'sets', v)} color={phaseColor.text} fontSize="1.15rem" />
             <div style={fieldLabel}>sets</div>
           </div>
           <div style={{ color: C.border, alignSelf: 'center', marginBottom: '0.85rem' }}>×</div>
           <div style={fieldWrap}>
-            <EditableField value={ex.reps} onChange={(v) => updateExerciseField(flatIndex, 'reps', v)} width="64px" fontSize="1rem" />
+            <EditableField value={ex.reps} onChange={(v) => updateExerciseField(flatIdx, 'reps', v)} width="64px" fontSize="1rem" />
             <div style={fieldLabel}>reps</div>
           </div>
           <div style={{ color: C.border, alignSelf: 'center', marginBottom: '0.85rem', fontSize: '0.75rem' }}>·</div>
           <div style={fieldWrap}>
-            <EditableField value={ex.rest} onChange={(v) => updateExerciseField(flatIndex, 'rest', v)} width="56px" fontSize="0.9rem" color={C.textSecondary} fontWeight={300} />
+            <EditableField value={ex.rest} onChange={(v) => updateExerciseField(flatIdx, 'rest', v)} width="56px" fontSize="0.9rem" color={C.textSecondary} fontWeight={300} />
             <div style={fieldLabel}>rest</div>
           </div>
           <div style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '0.7rem', color: C.border, marginBottom: '0.85rem' }}>
             click to edit
           </div>
         </div>
+
+        {/* RPE inline panel */}
+        {rpeOpen && ex.targetRPE != null && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.85rem 1rem',
+            backgroundColor: phaseColor.bg,
+            borderRadius: '8px',
+            border: `1px solid ${phaseColor.border}30`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.4rem' }}>
+              <span style={{ fontSize: '0.95rem', fontWeight: 500, color: phaseColor.text }}>RPE {ex.targetRPE}</span>
+              <span style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300 }}>
+                {RPE_DESCRIPTIONS[ex.targetRPE] || 'Leave appropriate reps in reserve.'}
+              </span>
+            </div>
+            {ex.movementCue && (
+              <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: '0.4rem', marginTop: '0.1rem' }}>
+                <span style={{ fontWeight: 400, color: C.text }}>Cue: </span>{ex.movementCue}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
-  const labels = routine ? computeLabels(routine.exercises) : [];
+  // ── Phase group renderer ──────────────────────────────────────────────
+  function renderPhaseGroup(phaseId, phaseExercises) {
+    const phaseMeta = routine.phases.find((p) => p.phaseId === phaseId);
+    const phaseColor = PHASE_COLORS[phaseId] || PHASE_COLORS.accessory;
+    if (!phaseMeta || phaseExercises.length === 0) return null;
+
+    // Group into superset pairs or individual exercises
+    const groups = [];
+    let i = 0;
+    while (i < phaseExercises.length) {
+      const ex = phaseExercises[i];
+      if (ex.supersetGroup) {
+        const label = ex.supersetGroup;
+        const items = [];
+        while (i < phaseExercises.length && phaseExercises[i].supersetGroup === label) {
+          items.push(phaseExercises[i++]);
+        }
+        groups.push({ type: 'superset', label, items });
+      } else {
+        groups.push({ type: 'single', exercise: ex });
+        i++;
+      }
+    }
+
+    return (
+      <div key={phaseId} style={{ marginBottom: '1.5rem' }}>
+        {/* Phase header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0.65rem 1rem',
+          backgroundColor: phaseColor.bg,
+          border: `1px solid ${phaseColor.border}30`,
+          borderLeft: `3px solid ${phaseColor.border}`,
+          borderRadius: '8px',
+          marginBottom: '0.75rem',
+          flexWrap: 'wrap', gap: '0.5rem',
+        }}>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: '0.8rem', color: phaseColor.text, letterSpacing: '0.3px' }}>
+              {phaseMeta.phaseLabel}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, marginTop: '0.1rem' }}>
+              {phaseMeta.description}
+            </div>
+          </div>
+          <span style={{
+            fontSize: '0.72rem', fontWeight: 400, color: phaseColor.text,
+            backgroundColor: `${phaseColor.border}15`,
+            border: `1px solid ${phaseColor.border}30`,
+            borderRadius: '20px', padding: '2px 10px', whiteSpace: 'nowrap',
+          }}>
+            ~{phaseMeta.estimatedMin} min
+          </span>
+        </div>
+
+        {/* Exercises in this phase */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {groups.map((group, gi) => {
+            if (group.type === 'single') {
+              return renderExerciseCard(group.exercise);
+            }
+            return (
+              <div
+                key={`superset-${group.label}-${gi}`}
+                style={{ border: `1px solid ${C.border}`, borderRadius: '12px', overflow: 'hidden' }}
+              >
+                <div style={{ backgroundColor: C.bg, padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', borderBottom: `1px solid ${C.border}` }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={phaseColor.border} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                  </svg>
+                  <span style={{ fontWeight: 400, fontSize: '0.75rem', color: phaseColor.text, textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+                    Superset {group.label}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300 }}>· perform back-to-back with minimal rest</span>
+                </div>
+                <div style={{ backgroundColor: C.surface }}>
+                  {group.items.map((item, itemIdx) => (
+                    <div key={`${item.id}-${item._flatIdx}`}>
+                      {itemIdx > 0 && <div style={{ borderTop: `1px dashed ${C.border}`, margin: '0 1.25rem' }} />}
+                      {renderExerciseCard(item, true)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  const conflictMuscles = recoveryState?.conflictMuscles || [];
 
   return (
     <>
@@ -590,7 +687,7 @@ export default function RoutineGenerator() {
         {/* Form Card */}
         <div style={{ ...card, padding: '1.75rem', marginBottom: '2rem' }}>
 
-          {/* Training Goals — multi-select */}
+          {/* Training Goals */}
           <section style={{ marginBottom: '1.75rem' }}>
             <h2 style={sectionLabel}>
               Training Goals{' '}
@@ -675,46 +772,6 @@ export default function RoutineGenerator() {
             </div>
           </section>
 
-          {/* Number of Exercises */}
-          <section style={{ marginBottom: '1.75rem' }}>
-            <h2 style={sectionLabel}>Number of Exercises</h2>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {COUNT_OPTIONS.map((n) => {
-                const active = exerciseCount === n;
-                const isRec = n === 'recommended';
-                return (
-                  <button
-                    key={String(n)}
-                    onClick={() => setExerciseCount(n)}
-                    style={isRec ? {
-                      height: '48px', padding: '0 1.1rem', borderRadius: '8px', whiteSpace: 'nowrap',
-                      border: `1px ${active ? 'solid' : 'dashed'} ${accent}`,
-                      backgroundColor: active ? accent : C.accentMuted,
-                      color: active ? '#ffffff' : accent,
-                      fontWeight: 400, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.15s',
-                    } : {
-                      width: '48px', height: '48px', borderRadius: '8px',
-                      border: `1px solid ${active ? accent : C.border}`,
-                      backgroundColor: active ? accent : C.bg,
-                      color: active ? '#ffffff' : C.textSecondary,
-                      fontWeight: 400, fontSize: '1rem', cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                  >
-                    {isRec ? 'Recommended' : n}
-                  </button>
-                );
-              })}
-            </div>
-            {exerciseCount === 'recommended' && (
-              <p style={{ marginTop: '0.6rem', fontSize: '0.78rem', color: C.textSecondary, lineHeight: 1.4, fontWeight: 300 }}>
-                {recommendationReason(
-                  goals, muscleGroups, timeLimit,
-                  calculateRecommended(goals, muscleGroups, timeLimit)
-                )}
-              </p>
-            )}
-          </section>
-
           {/* Time Limit */}
           <section style={{ marginBottom: '1.75rem' }}>
             <h2 style={sectionLabel}>Time Limit</h2>
@@ -734,15 +791,86 @@ export default function RoutineGenerator() {
             </div>
           </section>
 
+          {/* Training philosophy note */}
+          {profile?.training_philosophy && (
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.6rem 0.875rem',
+              backgroundColor: C.accentMuted,
+              borderRadius: '8px',
+              border: `1px solid ${accent}30`,
+              fontSize: '0.78rem', color: accent, fontWeight: 300,
+            }}>
+              Philosophy: <span style={{ fontWeight: 400, textTransform: 'capitalize' }}>
+                {profile.training_philosophy.replace('_', ' ')}
+              </span> · change in <a href="/profile" style={{ color: accent }}>Profile</a>
+            </div>
+          )}
+
           {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '1rem', fontWeight: 300 }}>{error}</p>}
 
+          {/* Recovery warning */}
+          {conflictMuscles.length > 0 && (
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.875rem 1rem',
+              backgroundColor: '#fef9ee',
+              borderRadius: '8px',
+              border: '1px solid #d97706',
+              display: 'flex', flexDirection: 'column', gap: '0.5rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
+                <div>
+                  <div style={{ fontWeight: 400, fontSize: '0.85rem', color: '#92400e', marginBottom: '0.15rem' }}>
+                    Recovery Warning
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 300, lineHeight: 1.5 }}>
+                    <strong>{conflictMuscles.join(', ')}</strong> {conflictMuscles.length === 1 ? 'was' : 'were'} trained within the last 48 hours.
+                    Recommend resting these muscles or choosing different groups.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => handleGenerate(true)}
+                  disabled={recoveryLoading}
+                  style={{
+                    padding: '0.45rem 1rem', borderRadius: '6px',
+                    border: '1px solid #d97706', backgroundColor: '#d97706',
+                    color: '#fff', fontWeight: 400, fontSize: '0.8rem', cursor: 'pointer',
+                  }}
+                >
+                  Generate Anyway
+                </button>
+                <button
+                  onClick={() => setRecoveryState((prev) => ({ ...prev, conflictMuscles: [] }))}
+                  style={{
+                    padding: '0.45rem 1rem', borderRadius: '6px',
+                    border: '1px solid #d97706', backgroundColor: 'transparent',
+                    color: '#92400e', fontWeight: 300, fontSize: '0.8rem', cursor: 'pointer',
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
-            onClick={handleGenerate}
-            style={{ ...btnPrimary, width: '100%', padding: '0.875rem', fontSize: '1rem' }}
+            onClick={() => handleGenerate(false)}
+            disabled={recoveryLoading}
+            style={{
+              ...btnPrimary,
+              width: '100%',
+              padding: '0.875rem',
+              fontSize: '1rem',
+              opacity: recoveryLoading ? 0.7 : 1,
+            }}
             onMouseOver={(e) => (e.target.style.backgroundColor = C.accentHover)}
             onMouseOut={(e) => (e.target.style.backgroundColor = accent)}
           >
-            Generate Routine
+            {recoveryLoading ? 'Checking recovery…' : 'Generate Routine'}
           </button>
         </div>
 
@@ -750,7 +878,7 @@ export default function RoutineGenerator() {
         {routine && (
           <div id="routine-output">
             {/* Header */}
-            <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 500, color: C.text, fontFamily: FONTS.heading }}>
                   Your {routine.blendLabel} Routine
@@ -764,81 +892,76 @@ export default function RoutineGenerator() {
               </span>
             </div>
 
-            {/* Estimated time + breakdown + adjustment note */}
-            {(routine.estimatedMin > 0 || routine.adjustedTo) && (
-              <div style={{ marginBottom: '1.25rem' }}>
-                {routine.estimatedMin > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, fontSize: '0.95rem', color: accent, marginBottom: '0.45rem' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            {/* "Why this routine?" collapsible panel */}
+            <div style={{ marginBottom: '1rem' }}>
+              <button
+                onClick={() => setShowWhyPanel((v) => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  padding: '0.5rem 0.85rem',
+                  borderRadius: '8px',
+                  border: `1px solid ${showWhyPanel ? accent : C.border}`,
+                  backgroundColor: showWhyPanel ? C.accentMuted : C.bg,
+                  color: showWhyPanel ? accent : C.textSecondary,
+                  fontSize: '0.8rem', fontWeight: showWhyPanel ? 400 : 300,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                onMouseOver={(e) => { if (!showWhyPanel) { e.currentTarget.style.borderColor = accent; e.currentTarget.style.color = accent; e.currentTarget.style.backgroundColor = C.accentMuted; } }}
+                onMouseOut={(e) => { if (!showWhyPanel) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.backgroundColor = C.bg; } }}
+              >
+                <span style={{ fontSize: '0.85rem' }}>ⓘ</span>
+                Why this routine?
+                <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{showWhyPanel ? '▲' : '▼'}</span>
+              </button>
+              {showWhyPanel && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  padding: '1rem 1.1rem',
+                  backgroundColor: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  color: C.textSecondary,
+                  fontWeight: 300,
+                  lineHeight: 1.65,
+                }}>
+                  {routine.explanation}
+                </div>
+              )}
+            </div>
+
+            {/* Time estimate + set reduction note */}
+            {routine.totalEstimatedMin > 0 && (
+              <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, fontSize: '0.95rem', color: accent }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  ~{routine.totalEstimatedMin} min total
+                </div>
+                {routine.setReductionNote && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.35rem 0.75rem',
+                    backgroundColor: C.accentMuted,
+                    border: `1px solid ${accent}40`,
+                    borderRadius: '6px',
+                    fontSize: '0.75rem', color: accent, fontWeight: 300,
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                     </svg>
-                    ~{routine.estimatedMin} min total
+                    {routine.setReductionNote}
                   </div>
-                )}
-                {routine.breakdown && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: routine.adjustedTo ? '0.5rem' : 0 }}>
-                    <span style={{ ...tagBase }}>↑ {routine.breakdown.warmup}m warm-up</span>
-                    <span style={{ ...tagBase }}>{routine.breakdown.exercise}m exercises</span>
-                    {routine.breakdown.transitions > 0 && (
-                      <span style={{ ...tagBase }}>{routine.breakdown.transitions}m transitions</span>
-                    )}
-                    <span style={{ ...tagBase }}>↓ {routine.breakdown.cooldown}m cool-down</span>
-                  </div>
-                )}
-                {routine.adjustedTo && (
-                  <span style={{ ...tagBase, fontWeight: 300 }}>
-                    Adjusted to {routine.adjustedTo} exercises to fit your {routine.timeLimitMin} min limit
-                  </span>
                 )}
               </div>
             )}
 
-            {/* Exercise list — grouped by supersets */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              {groupExercises(routine.exercises).map((group, groupIdx) => {
-                if (group.type === 'single') {
-                  const lbl = labels[group.flatIndex];
-                  return renderCard(group.exercise, group.flatIndex, lbl.label, lbl.color);
-                }
-
-                return (
-                  <div
-                    key={`superset-${group.label}-${groupIdx}`}
-                    style={{
-                      border: `1px solid ${C.border}`,
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {/* Superset header */}
-                    <div style={{ backgroundColor: C.bg, padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', borderBottom: `1px solid ${C.border}` }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
-                      </svg>
-                      <span style={{ fontWeight: 400, fontSize: '0.75rem', color: accent, textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-                        Superset {group.label}
-                      </span>
-                      <span style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300 }}>· perform back-to-back with minimal rest</span>
-                    </div>
-
-                    {/* Exercises within the superset */}
-                    <div style={{ backgroundColor: C.surface }}>
-                      {group.items.map((item, itemIdx) => {
-                        const lbl = labels[item.flatIndex];
-                        return (
-                          <div key={`${item.exercise.id}-${item.flatIndex}`}>
-                            {itemIdx > 0 && (
-                              <div style={{ borderTop: `1px dashed ${C.border}`, margin: '0 1.25rem' }} />
-                            )}
-                            {renderCard(item.exercise, item.flatIndex, lbl.label, lbl.color, true)}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {/* Phase-based exercise list */}
+            {routine.phases.map((phase) => {
+              const phaseExercises = routine.exercises.filter((ex) => ex.phaseId === phase.phaseId);
+              return renderPhaseGroup(phase.phaseId, phaseExercises);
+            })}
 
             {/* Share to Community toggle */}
             <div
@@ -867,7 +990,7 @@ export default function RoutineGenerator() {
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
-                onClick={handleGenerate}
+                onClick={() => handleGenerate(false)}
                 style={{ padding: '0.7rem 1.4rem', borderRadius: '8px', border: `1px solid ${accent}`, backgroundColor: 'transparent', color: accent, fontWeight: 400, fontSize: '0.875rem', cursor: 'pointer', transition: 'all 0.15s' }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = C.accentMuted)}
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}

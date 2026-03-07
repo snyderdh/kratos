@@ -268,6 +268,7 @@ export default function KratosSplit() {
       title,
       split:                'kratos_split',
       length_weeks:         12,
+      days_per_week:        6,
       goals:                toArray([resolvedGoal]),
       equipment:            toArray(equipment),
       weeks,

@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Sidebar, { SIDEBAR_WIDTH } from './components/Sidebar';
+import BottomTabBar from './components/BottomTabBar';
 import AuthGuard from './components/AuthGuard';
+import { C } from './theme';
 import Home from './pages/Home';
 import RoutineGenerator from './pages/RoutineGenerator';
 import ExerciseLibrary from './pages/ExerciseLibrary';
@@ -28,8 +30,9 @@ export default function App() {
             path="/*"
             element={
               <AuthGuard>
-                <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f5f6fa' }}>
+                <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: C.bg }}>
                   <Sidebar />
+                  <BottomTabBar />
                   <main
                     className="sidebar-main-content"
                     style={{ flex: 1, marginLeft: `${SIDEBAR_WIDTH}px`, minWidth: 0 }}

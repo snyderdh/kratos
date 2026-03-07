@@ -186,6 +186,7 @@ export default function Sidebar() {
           align-items: center;
           gap: 0.75rem;
           padding: 0.575rem 0.75rem;
+          min-height: 44px;
           border-radius: 8px;
           text-decoration: none;
           color: var(--text-secondary);
@@ -213,7 +214,9 @@ export default function Sidebar() {
           .sidebar-main-content {
             margin-left: 0 !important;
             padding-top: 3.5rem;
+            padding-bottom: 56px;
           }
+          .bottom-tab-bar { display: flex !important; }
         }
       `}</style>
     </>

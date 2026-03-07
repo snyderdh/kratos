@@ -2,7 +2,12 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import CycleViewer from '../components/CycleViewer';
+import { SPLITS } from '../utils/cycleGenerator';
 import { C, FONTS, card, btnSecondary, tagBase } from '../theme';
+
+function getSplitLabel(split) {
+  return SPLITS[split]?.label ?? split ?? '—';
+}
 
 export default function SavedCycles() {
   const { user } = useAuth();
@@ -20,7 +25,7 @@ export default function SavedCycles() {
     setLoading(true);
     const { data, error: err } = await supabase
       .from('cycles')
-      .select('id, title, split, split_label, cycle_length, days_per_week, goals, equipment, is_public, created_at')
+      .select('id, title, split, cycle_length, days_per_week, goals, equipment, is_public, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     setLoading(false);
@@ -44,7 +49,7 @@ export default function SavedCycles() {
     } else {
       setActiveCycle({
         ...data,
-        splitLabel: data.split_label,
+        splitLabel: getSplitLabel(data.split),
         cycleLength: data.cycle_length,
         daysPerWeek: data.days_per_week,
       });
@@ -129,7 +134,7 @@ export default function SavedCycles() {
                   )}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.45rem' }}>
-                  <span style={{ ...tagBase }}>{c.split_label}</span>
+                  <span style={{ ...tagBase }}>{getSplitLabel(c.split)}</span>
                   <span style={{ ...tagBase }}>{c.cycle_length} weeks</span>
                   <span style={{ ...tagBase }}>{c.days_per_week}×/week</span>
                   {(c.goals ?? []).map((g) => (

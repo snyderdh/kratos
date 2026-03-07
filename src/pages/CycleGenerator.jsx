@@ -123,7 +123,6 @@ export default function CycleGenerator() {
       user_id: user.id,
       title: cycle.title,
       split: cycle.split,
-      split_label: cycle.splitLabel,
       cycle_length: cycle.cycleLength,
       days_per_week: cycle.daysPerWeek,
       goals: cycle.goals,

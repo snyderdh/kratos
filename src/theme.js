@@ -55,7 +55,7 @@ export const inputBase = {
   borderRadius: '8px',
   color: C.text,
   fontFamily: FONTS.body,
-  fontSize: '0.875rem',
+  fontSize: '1rem', // ≥16px prevents iOS auto-zoom on focus
   outline: 'none',
   transition: 'border-color 0.15s',
   boxSizing: 'border-box',

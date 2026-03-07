@@ -30,7 +30,7 @@ export const DAY_TYPE_META = {
   legs:      { label: 'Legs',       color: '#16a34a', bg: '#f0fdf4' },
   upper:     { label: 'Upper',      color: '#0891b2', bg: '#ecfeff' },
   lower:     { label: 'Lower',      color: '#d97706', bg: '#fffbeb' },
-  fullbody:  { label: 'Full Body',  color: '#FF6B2B', bg: '#fff7ed' },
+  fullbody:  { label: 'Full Body',  color: '#C2622A', bg: '#F5EDE6' },
   chest:     { label: 'Chest',      color: '#dc2626', bg: '#fef2f2' },
   back:      { label: 'Back',       color: '#9333ea', bg: '#faf5ff' },
   shoulders: { label: 'Shoulders',  color: '#2563eb', bg: '#eff6ff' },
@@ -42,7 +42,7 @@ export const DAY_TYPE_META = {
 export const PHASE_META = {
   foundation: { label: 'Foundation', color: '#2563eb', bg: '#eff6ff', description: 'Build base strength and technique.' },
   build:      { label: 'Build',      color: '#16a34a', bg: '#f0fdf4', description: '+1 set per exercise for progressive overload.' },
-  overload:   { label: 'Overload',   color: '#FF6B2B', bg: '#fff7ed', description: 'Peak intensity — +2 sets and higher reps.' },
+  overload:   { label: 'Overload',   color: '#C2622A', bg: '#F5EDE6', description: 'Peak intensity — +2 sets and higher reps.' },
   deload:     { label: 'Deload',     color: '#6b7280', bg: '#f9fafb', description: '40% volume reduction for active recovery.' },
 };
 

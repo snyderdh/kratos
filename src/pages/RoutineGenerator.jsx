@@ -87,6 +87,10 @@ function recommendationReason(goals, muscleGroups, timeLimit, count) {
 }
 
 // ── Time estimation helpers ───────────────────────────────────────────────
+const WARMUP_BUFFER_MIN = 3;
+const COOLDOWN_BUFFER_MIN = 3;
+const TRANSITION_MIN = 1; // between exercise slots
+
 function parseAvgReps(repsStr) {
   const s = String(repsStr ?? '10');
   if (s.endsWith('s')) return 10;
@@ -101,22 +105,56 @@ function parseRestSec(restStr) {
   return parseInt(String(restStr ?? '60')) || 60;
 }
 
+// Select realistic sec-per-rep based on rest period:
+//   ≥150s rest → strength/power (4 sec/rep, slow heavy reps)
+//   ≥75s rest  → hypertrophy (3 sec/rep, controlled tempo)
+//   <75s rest  → endurance (2 sec/rep, faster reps)
+function secPerRepFromRest(restSec, isMobility) {
+  if (isMobility) return 2;
+  if (restSec >= 150) return 4;
+  if (restSec >= 75) return 3;
+  return 2;
+}
+
 function estimateExerciseMinutes(ex) {
   const sets = Number(ex.sets) || 3;
-  const workSec = sets * parseAvgReps(ex.reps) * (ex.isMobility ? 2 : 3);
-  const totalRestSec = (sets - 1) * parseRestSec(ex.rest);
-  return (workSec + totalRestSec + 45) / 60;
+  const restSec = parseRestSec(ex.rest);
+  const spr = secPerRepFromRest(restSec, ex.isMobility);
+  const workSec = sets * parseAvgReps(ex.reps) * spr;
+  const totalRestSec = (sets - 1) * restSec;
+  return (workSec + totalRestSec) / 60;
 }
 
 function estimateSupersetMinutes(exList) {
   const sets = Number(exList[0]?.sets) || 3;
-  const workSec = exList.reduce((s, ex) => s + sets * parseAvgReps(ex.reps) * 3, 0);
-  const totalRestSec = (sets - 1) * parseRestSec(exList[0]?.rest);
-  return (workSec + totalRestSec + 45) / 60;
+  const restSec = parseRestSec(exList[0]?.rest);
+  const spr = secPerRepFromRest(restSec, false);
+  const workSec = exList.reduce((s, ex) => s + sets * parseAvgReps(ex.reps) * spr, 0);
+  const totalRestSec = (sets - 1) * restSec;
+  return (workSec + totalRestSec) / 60;
+}
+
+// Count distinct exercise "slots" (supersets count as 1 slot)
+function countExerciseSlots(exercises) {
+  let slots = 0;
+  let i = 0;
+  while (i < exercises.length) {
+    const ex = exercises[i];
+    if (ex.supersetGroup) {
+      const label = ex.supersetGroup;
+      while (i < exercises.length && exercises[i].supersetGroup === label) i++;
+      slots++;
+    } else {
+      slots++;
+      i++;
+    }
+  }
+  return slots;
 }
 
 function estimateTotalMinutes(exercises) {
-  let total = 0;
+  let exerciseMin = 0;
+  let slots = 0;
   let i = 0;
   while (i < exercises.length) {
     const ex = exercises[i];
@@ -126,22 +164,28 @@ function estimateTotalMinutes(exercises) {
       while (i < exercises.length && exercises[i].supersetGroup === label) {
         group.push(exercises[i++]);
       }
-      total += estimateSupersetMinutes(group);
+      exerciseMin += estimateSupersetMinutes(group);
+      slots++;
     } else {
-      total += estimateExerciseMinutes(ex);
+      exerciseMin += estimateExerciseMinutes(ex);
+      slots++;
       i++;
     }
   }
-  return total;
+  const transitionMin = Math.max(0, slots - 1) * TRANSITION_MIN;
+  return WARMUP_BUFFER_MIN + exerciseMin + transitionMin + COOLDOWN_BUFFER_MIN;
 }
 
 function maxExercisesForLimit(limitMin, blendConfig, hasMobility) {
   const sets = blendConfig.sets;
-  const workSec = sets * parseAvgReps(blendConfig.reps) * 3;
-  const totalRestSec = (sets - 1) * blendConfig.restSeconds;
-  const minutesPerEx = (workSec + totalRestSec + 45) / 60;
-  const mobilityReserve = hasMobility ? 4 : 0;
-  return Math.max(1, Math.floor((limitMin - mobilityReserve) / minutesPerEx));
+  const restSec = blendConfig.restSeconds;
+  const spr = secPerRepFromRest(restSec, false);
+  const workSec = sets * parseAvgReps(blendConfig.reps) * spr;
+  const totalRestSec = (sets - 1) * restSec;
+  // Per-exercise time + 1 min transition between each
+  const minutesPerEx = (workSec + totalRestSec) / 60 + TRANSITION_MIN;
+  const overhead = WARMUP_BUFFER_MIN + COOLDOWN_BUFFER_MIN + (hasMobility ? 4 : 0);
+  return Math.max(1, Math.floor((limitMin - overhead) / minutesPerEx));
 }
 
 function isEdited(ex) {
@@ -355,11 +399,21 @@ export default function RoutineGenerator() {
     }
 
     const result = generateSingleDayRoutine({ goals, equipment, muscleGroups, exerciseCount: effectiveCount });
-    const estimatedMin = Math.round(estimateTotalMinutes(result.exercises));
+    const slots = countExerciseSlots(result.exercises);
+    const transitionMin = Math.max(0, slots - 1) * TRANSITION_MIN;
+    const totalMin = estimateTotalMinutes(result.exercises);
+    const exerciseMin = Math.round(totalMin - WARMUP_BUFFER_MIN - COOLDOWN_BUFFER_MIN - transitionMin);
+    const estimatedMin = Math.round(totalMin);
     setRoutine({
       ...result,
       exercises: tagDefaults(result.exercises),
       estimatedMin,
+      breakdown: {
+        warmup: WARMUP_BUFFER_MIN,
+        exercise: Math.max(1, exerciseMin),
+        transitions: transitionMin,
+        cooldown: COOLDOWN_BUFFER_MIN,
+      },
       adjustedFrom: wasAdjusted ? exerciseCount : null,
       adjustedTo: wasAdjusted ? effectiveCount : null,
       timeLimitMin: timeLimit !== 'no-limit' ? parseInt(timeLimit) : null,
@@ -710,16 +764,26 @@ export default function RoutineGenerator() {
               </span>
             </div>
 
-            {/* Estimated time + adjustment note */}
+            {/* Estimated time + breakdown + adjustment note */}
             {(routine.estimatedMin > 0 || routine.adjustedTo) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              <div style={{ marginBottom: '1.25rem' }}>
                 {routine.estimatedMin > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, fontSize: '0.95rem', color: accent }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, fontSize: '0.95rem', color: accent, marginBottom: '0.45rem' }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                     </svg>
-                    Estimated time: {routine.estimatedMin} min
-                  </span>
+                    ~{routine.estimatedMin} min total
+                  </div>
+                )}
+                {routine.breakdown && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: routine.adjustedTo ? '0.5rem' : 0 }}>
+                    <span style={{ ...tagBase }}>↑ {routine.breakdown.warmup}m warm-up</span>
+                    <span style={{ ...tagBase }}>{routine.breakdown.exercise}m exercises</span>
+                    {routine.breakdown.transitions > 0 && (
+                      <span style={{ ...tagBase }}>{routine.breakdown.transitions}m transitions</span>
+                    )}
+                    <span style={{ ...tagBase }}>↓ {routine.breakdown.cooldown}m cool-down</span>
+                  </div>
                 )}
                 {routine.adjustedTo && (
                   <span style={{ ...tagBase, fontWeight: 300 }}>

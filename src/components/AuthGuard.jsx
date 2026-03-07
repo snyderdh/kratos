@@ -1,16 +1,15 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
-const orange = '#FF6B2B';
+import { C } from '../theme';
 
 function Spinner() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f6fa' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
       <div style={{
         width: '40px',
         height: '40px',
-        border: `3px solid #e5e7eb`,
-        borderTop: `3px solid ${orange}`,
+        border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.accent}`,
         borderRadius: '50%',
         animation: 'spin 0.7s linear infinite',
       }} />

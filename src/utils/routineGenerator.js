@@ -38,6 +38,30 @@ const mobilityExercises = [
   { id: 'mob-8', name: 'Doorway Pec Stretch',      muscleGroup: 'chest',     equipment: 'bodyweight', difficulty: 'beginner' },
 ];
 
+// ── Push / pull classification for exercise alternation ───────────────────
+const PUSH_GROUPS = ['chest', 'shoulders'];
+const PULL_GROUPS = ['back', 'arms'];
+
+// Reorder exercises to alternate push → pull → push → pull.
+// Neutral groups (legs, core) are appended after.
+// If no push or no pull exercises are present, returns the original order.
+function alternatePushPull(exList) {
+  const push = exList.filter((ex) => PUSH_GROUPS.includes(ex.muscleGroup));
+  const pull = exList.filter((ex) => PULL_GROUPS.includes(ex.muscleGroup));
+  const neutral = exList.filter(
+    (ex) => !PUSH_GROUPS.includes(ex.muscleGroup) && !PULL_GROUPS.includes(ex.muscleGroup)
+  );
+  if (push.length === 0 || pull.length === 0) return exList;
+  const result = [];
+  const len = Math.max(push.length, pull.length);
+  for (let i = 0; i < len; i++) {
+    if (i < push.length) result.push(push[i]);
+    if (i < pull.length) result.push(pull[i]);
+  }
+  result.push(...neutral);
+  return result;
+}
+
 // ── Antagonist pairs for superset creation ───────────────────────────────
 const ANTAGONIST_PAIRS = [
   ['chest', 'back'],
@@ -203,9 +227,10 @@ export function generateSingleDayRoutine({ goals, equipment, muscleGroups, exerc
   const primaryGoal = mainGoals[0];
   const picked = pickExercises(muscleGroups, equipment, primaryGoal, exerciseCount, excludeIds);
   const mainExercises = picked.map((ex) => ({ ...decorate(ex, blendConfig), supersetGroup: null }));
+  const alternated = alternatePushPull(mainExercises);
   const orderedMain = blendConfig.supersets
-    ? applySupersetsToExercises(mainExercises)
-    : mainExercises;
+    ? applySupersetsToExercises(alternated)
+    : alternated;
 
   return {
     goals,

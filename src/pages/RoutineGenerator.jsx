@@ -12,10 +12,13 @@ const GOALS = [
 ];
 
 const EQUIPMENT = [
-  { value: 'barbell',    label: 'Barbell' },
-  { value: 'dumbbells',  label: 'Dumbbells' },
-  { value: 'bodyweight', label: 'Bodyweight' },
-  { value: 'cables',     label: 'Cables' },
+  { value: 'barbell',     label: 'Barbell' },
+  { value: 'dumbbells',   label: 'Dumbbells' },
+  { value: 'bodyweight',  label: 'Bodyweight' },
+  { value: 'cables',      label: 'Cables' },
+  { value: 'machines',    label: 'Machines' },
+  { value: 'kettlebells', label: 'Kettlebells' },
+  { value: 'bands',       label: 'Resistance Bands' },
 ];
 
 const MUSCLES = [

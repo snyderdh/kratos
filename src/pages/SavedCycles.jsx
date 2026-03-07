@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import CycleViewer from '../components/CycleViewer';
+import KratosSplitViewer from '../components/KratosSplitViewer';
 import { SPLITS } from '../utils/cycleGenerator';
 import { C, FONTS, card, btnSecondary, tagBase } from '../theme';
 
@@ -84,7 +85,10 @@ export default function SavedCycles() {
           <p style={{ color: C.textSecondary, fontSize: '0.82rem', marginBottom: '1.25rem', fontWeight: 300 }}>
             Saved {new Date(activeCycle.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
-          <CycleViewer cycle={activeCycle} />
+          {activeCycle.split === 'kratos_split'
+            ? <KratosSplitViewer cycle={activeCycle} />
+            : <CycleViewer cycle={activeCycle} />
+          }
         </div>
       </div>
     );

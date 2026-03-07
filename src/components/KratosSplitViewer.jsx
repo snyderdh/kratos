@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { C, FONTS } from '../theme';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabase';
 
 // ── Brand / phase constants ────────────────────────────────────────────
 const TERRA = '#C2622A';
@@ -582,12 +584,362 @@ function RestDayContent({ nextDay }) {
   );
 }
 
+// ── Workout logging components ─────────────────────────────────────────
+
+function SuggestionBanner({ suggestion }) {
+  if (!suggestion) return null;
+  return (
+    <div style={{ padding: '0.45rem 0.75rem', backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#2563eb', fontWeight: 300, marginBottom: '0.5rem' }}>
+      Last session:{' '}
+      <strong style={{ fontWeight: 500 }}>{suggestion.lastWeight} lbs × {suggestion.lastReps}</strong>
+      {' — try '}<strong style={{ fontWeight: 500 }}>{suggestion.suggestWeight} lbs</strong> today
+    </div>
+  );
+}
+
+function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, suggestion, saving, onCompleteSet }) {
+  const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
+  const [weight, setWeight] = useState(() => suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
+  const [reps,   setReps]   = useState('');
+  const [rpe,    setRpe]    = useState('');
+
+  const isDone     = activeSetIdx >= numSets;
+  const currentSet = activeSetIdx + 1;
+  const isLastSet  = currentSet === numSets;
+  const canSubmit  = weight.trim() !== '' && reps.trim() !== '';
+
+  useEffect(() => {
+    if (suggestion?.suggestWeight && !weight) setWeight(String(suggestion.suggestWeight));
+  }, [suggestion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleComplete() {
+    if (!canSubmit || saving) return;
+    onCompleteSet(exIdx, activeSetIdx, { weight, reps, rpe });
+    setReps('');
+    setRpe('');
+  }
+
+  const inputStyle = { width: '100%', padding: '0.5rem 0.5rem', borderRadius: '8px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '0.9rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
+
+  return (
+    <div style={{ borderRadius: '10px', border: `1px solid ${isDone ? '#86efac' : C.border}`, backgroundColor: isDone ? '#f0fdf4' : C.bg, overflow: 'hidden', marginBottom: '0.5rem' }}>
+      <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isDone ? '#bbf7d0' : C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontWeight: 400, color: isDone ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
+          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{numSets} × {ex.reps} · Target RPE {ex.targetRPE ?? '—'}</div>
+        </div>
+        {isDone && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontSize: '10px', fontWeight: 700 }}>✓</span>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 400 }}>Done</span>
+          </div>
+        )}
+      </div>
+
+      {savedSets.length > 0 && (
+        <div style={{ padding: '0.35rem 0.875rem 0' }}>
+          {savedSets.map((s) => (
+            <div key={s.set_number} style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, padding: '0.18rem 0', borderBottom: `1px dashed ${C.border}` }}>
+              <span style={{ color: pc.text, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
+              {s.weight_lbs} lbs × {s.reps_completed} reps{s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isDone && (
+        <div style={{ padding: '0.625rem 0.875rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 500, color: TERRA, backgroundColor: '#F5EDE6', padding: '0.15rem 0.5rem', borderRadius: '999px' }}>
+              Set {currentSet} of {numSets}
+            </span>
+            <span style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300 }}>Prescribed: {ex.reps}</span>
+          </div>
+          <SuggestionBanner suggestion={suggestion} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
+            {[
+              { label: 'Weight (lbs)', val: weight, set: setWeight, ph: '135', mode: 'decimal'  },
+              { label: 'Reps Done',    val: reps,   set: setReps,   ph: '8',   mode: 'numeric'  },
+              { label: 'Actual RPE',   val: rpe,    set: setRpe,    ph: '7',   mode: 'decimal'  },
+            ].map(({ label, val, set, ph, mode }) => (
+              <div key={label}>
+                <label style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.25rem' }}>{label}</label>
+                <input type="number" inputMode={mode} value={val} onChange={(e) => set(e.target.value)} placeholder={ph} style={inputStyle} />
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleComplete}
+            disabled={!canSubmit || saving}
+            style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none', backgroundColor: canSubmit && !saving ? TERRA : '#e5e7eb', color: canSubmit && !saving ? '#fff' : C.textSecondary, fontWeight: 400, fontSize: '0.875rem', cursor: canSubmit && !saving ? 'pointer' : 'default', transition: 'all 0.15s', fontFamily: FONTS.body }}
+          >
+            {saving ? 'Saving…' : isLastSet ? 'Complete Last Set ✓' : `Complete Set ${currentSet} →`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, saving, onSaveAll }) {
+  const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
+  const isAllSaved = savedSets.length >= numSets;
+
+  const [rows, setRows] = useState(() =>
+    Array.from({ length: numSets }, () => ({
+      weight: suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '',
+      reps:   '',
+      rpe:    String(ex.targetRPE ?? 7),
+    }))
+  );
+
+  useEffect(() => {
+    if (suggestion?.suggestWeight) {
+      setRows((prev) => prev.map((r) => ({ ...r, weight: r.weight || String(suggestion.suggestWeight) })));
+    }
+  }, [suggestion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function updateRow(i, field, val) {
+    setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+  }
+
+  const canSave = !isAllSaved && rows.some((r) => r.weight.trim() !== '' || r.reps.trim() !== '');
+  const inputStyle = { width: '100%', padding: '0.4rem 0.45rem', borderRadius: '6px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '0.85rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
+
+  return (
+    <div style={{ borderRadius: '10px', border: `1px solid ${isAllSaved ? '#86efac' : C.border}`, backgroundColor: isAllSaved ? '#f0fdf4' : C.bg, overflow: 'hidden', marginBottom: '0.5rem' }}>
+      <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isAllSaved ? '#bbf7d0' : C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontWeight: 400, color: isAllSaved ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
+          <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{numSets} × {ex.reps} · Target RPE {ex.targetRPE ?? '—'}</div>
+        </div>
+        {isAllSaved && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontSize: '10px', fontWeight: 700 }}>✓</span>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 400 }}>Saved</span>
+          </div>
+        )}
+      </div>
+
+      {isAllSaved ? (
+        <div style={{ padding: '0.35rem 0.875rem' }}>
+          {savedSets.map((s) => (
+            <div key={s.set_number} style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, padding: '0.18rem 0', borderBottom: `1px dashed ${C.border}` }}>
+              <span style={{ color: pc.text, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
+              {s.weight_lbs} lbs × {s.reps_completed} reps{s.rpe_actual ? ` — RPE ${s.rpe_actual}` : ''}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ padding: '0.625rem 0.875rem' }}>
+          <SuggestionBanner suggestion={suggestion} />
+          <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 72px', gap: '0.375rem', marginBottom: '0.3rem' }}>
+            {['Set', 'Weight (lbs)', 'Reps', 'RPE'].map((h) => (
+              <div key={h} style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.625rem' }}>
+            {rows.map((row, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 72px', gap: '0.375rem', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 500, color: TERRA, textAlign: 'center' }}>{i + 1}</div>
+                {(['weight', 'reps', 'rpe']).map((field) => (
+                  <input
+                    key={field}
+                    type="number"
+                    inputMode={field === 'reps' ? 'numeric' : 'decimal'}
+                    value={row[field]}
+                    onChange={(e) => updateRow(i, field, e.target.value)}
+                    placeholder={field === 'weight' ? '135' : field === 'reps' ? '8' : '7'}
+                    style={inputStyle}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => onSaveAll(exIdx, rows)}
+            disabled={!canSave || saving}
+            style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none', backgroundColor: canSave && !saving ? TERRA : '#e5e7eb', color: canSave && !saving ? '#fff' : C.textSecondary, fontWeight: 400, fontSize: '0.875rem', cursor: canSave && !saving ? 'pointer' : 'default', transition: 'all 0.15s', fontFamily: FONTS.body }}
+          >
+            {saving ? 'Saving…' : 'Save Exercise ✓'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompletionSummary({ summary }) {
+  return (
+    <div style={{ marginTop: '0.75rem', padding: '1rem 1.125rem', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1.5px solid #86efac' }}>
+      <div style={{ fontSize: '0.62rem', fontWeight: 600, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: '0.75rem' }}>Workout Complete</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+        {[
+          { label: 'Total Volume', value: `${summary.totalVolume.toLocaleString()} lbs` },
+          { label: 'Avg RPE',      value: summary.avgRPE },
+          { label: 'Exercises',    value: String(summary.exercisesLogged) },
+        ].map(({ label, value }) => (
+          <div key={label} style={{ textAlign: 'center', padding: '0.5rem 0.25rem', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 500, color: '#16a34a', fontFamily: FONTS.heading, lineHeight: 1.2 }}>{value}</div>
+            <div style={{ fontSize: '0.56rem', color: '#6b7280', fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.2rem' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAllLogged }) {
+  const exercises = day.exercises ?? [];
+
+  const [logData,     setLogData]     = useState(() => Object.fromEntries(exercises.map((_, i) => [i, { sets: [] }])));
+  const [activeSets,  setActiveSets]  = useState(() => Object.fromEntries(exercises.map((_, i) => [i, 0])));
+  const [suggestions, setSuggestions] = useState({});
+  const [savingIdx,   setSavingIdx]   = useState(null);
+  const [summary,     setSummary]     = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    async function fetchAll() {
+      const results = {};
+      await Promise.all(exercises.map(async (ex, idx) => {
+        const { data } = await supabase
+          .from('workout_logs')
+          .select('weight_lbs, reps_completed')
+          .eq('user_id', user.id)
+          .eq('exercise_name', ex.name)
+          .order('logged_at', { ascending: false })
+          .limit(2);
+        if (data && data.length >= 2) {
+          const last = data[0];
+          const w = parseFloat(last.weight_lbs);
+          results[idx] = { lastWeight: last.weight_lbs, lastReps: last.reps_completed, suggestWeight: Math.round((w + 5) * 2) / 2 };
+        }
+      }));
+      if (!cancelled) setSuggestions(results);
+    }
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCompleteSet(exIdx, setIdx, { weight, reps, rpe }) {
+    setSavingIdx(exIdx);
+    const ex = exercises[exIdx];
+    const { error } = await supabase.from('workout_logs').insert({
+      user_id:        user.id,
+      cycle_id:       cycle.id,
+      week_number:    weekIdx + 1,
+      day_type:       day.type,
+      exercise_id:    ex.id ?? null,
+      exercise_name:  ex.name,
+      set_number:     setIdx + 1,
+      weight_lbs:     weight !== '' ? parseFloat(weight)      : null,
+      reps_completed: reps   !== '' ? parseInt(reps, 10)       : null,
+      rpe_actual:     rpe    !== '' ? parseFloat(rpe)          : null,
+    });
+    setSavingIdx(null);
+    if (!error) {
+      setLogData((prev) => ({ ...prev, [exIdx]: { sets: [...(prev[exIdx]?.sets ?? []), { set_number: setIdx + 1, weight_lbs: weight, reps_completed: reps, rpe_actual: rpe, saved: true }] } }));
+      setActiveSets((prev) => ({ ...prev, [exIdx]: setIdx + 1 }));
+    }
+  }
+
+  async function handleSaveAll(exIdx, rows) {
+    setSavingIdx(exIdx);
+    const ex = exercises[exIdx];
+    const inserts = rows.map((row, i) => ({
+      user_id:        user.id,
+      cycle_id:       cycle.id,
+      week_number:    weekIdx + 1,
+      day_type:       day.type,
+      exercise_id:    ex.id ?? null,
+      exercise_name:  ex.name,
+      set_number:     i + 1,
+      weight_lbs:     row.weight !== '' ? parseFloat(row.weight) : null,
+      reps_completed: row.reps   !== '' ? parseInt(row.reps, 10) : null,
+      rpe_actual:     row.rpe    !== '' ? parseFloat(row.rpe)    : null,
+    }));
+    const { error } = await supabase.from('workout_logs').insert(inserts);
+    setSavingIdx(null);
+    if (!error) {
+      setLogData((prev) => ({ ...prev, [exIdx]: { sets: rows.map((row, i) => ({ set_number: i + 1, weight_lbs: row.weight, reps_completed: row.reps, rpe_actual: row.rpe, saved: true })) } }));
+      setActiveSets((prev) => ({ ...prev, [exIdx]: exercises[exIdx]?.sets ?? 3 }));
+    }
+  }
+
+  const allLogged = exercises.length > 0 && exercises.every((ex, idx) =>
+    (logData[idx]?.sets?.filter((s) => s.saved).length ?? 0) >= (ex.sets ?? 3)
+  );
+
+  useEffect(() => {
+    if (!allLogged || summary) return;
+    let vol = 0, rpeSum = 0, rpeCount = 0;
+    Object.values(logData).forEach(({ sets }) => {
+      sets.forEach((s) => {
+        if (s.weight_lbs && s.reps_completed) vol += parseFloat(s.weight_lbs) * parseInt(s.reps_completed, 10);
+        if (s.rpe_actual && s.rpe_actual !== '') { rpeSum += parseFloat(s.rpe_actual); rpeCount++; }
+      });
+    });
+    const computed = { totalVolume: Math.round(vol), avgRPE: rpeCount > 0 ? (rpeSum / rpeCount).toFixed(1) : '—', exercisesLogged: exercises.length };
+    setSummary(computed);
+    onAllLogged(computed);
+  }, [allLogged]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tabBase = { flex: 1, padding: '0.45rem 0.5rem', borderRadius: '6px', border: 'none', fontSize: '0.78rem', cursor: 'pointer', transition: 'all 0.15s', fontFamily: FONTS.body };
+
+  return (
+    <div>
+      {/* Style toggle */}
+      <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '1rem', padding: '0.2rem', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
+        {[{ value: 'one_at_a_time', label: 'One set at a time' }, { value: 'all_at_once', label: 'All sets at once' }].map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setLogStyle(value)}
+            style={{ ...tabBase, backgroundColor: logStyle === value ? '#fff' : 'transparent', color: logStyle === value ? C.text : C.textSecondary, fontWeight: logStyle === value ? 400 : 300, boxShadow: logStyle === value ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Exercise cards */}
+      {exercises.map((ex, idx) => {
+        const numSets   = ex.sets ?? 3;
+        const savedSets = logData[idx]?.sets?.filter((s) => s.saved) ?? [];
+        const isSaving  = savingIdx === idx;
+        return logStyle === 'one_at_a_time' ? (
+          <ExerciseLogOneAtATime
+            key={idx} ex={ex} exIdx={idx} numSets={numSets}
+            savedSets={savedSets} activeSetIdx={activeSets[idx] ?? 0}
+            suggestion={suggestions[idx] ?? null} saving={isSaving}
+            onCompleteSet={handleCompleteSet}
+          />
+        ) : (
+          <ExerciseLogAllAtOnce
+            key={idx} ex={ex} exIdx={idx} numSets={numSets}
+            savedSets={savedSets} suggestion={suggestions[idx] ?? null}
+            saving={isSaving} onSaveAll={handleSaveAll}
+          />
+        );
+      })}
+
+      {allLogged && summary && <CompletionSummary summary={summary} />}
+    </div>
+  );
+}
+
 // ── Day modal ──────────────────────────────────────────────────────────
 function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onClose }) {
   const week = cycle.weeks[weekIdx];
   const day  = week?.days[dayIdx];
   if (!day) return null;
 
+  const { user }  = useAuth();
   const pm        = PHASE_META[week.phase]   ?? PHASE_META.foundation;
   const meta      = DAY_META[day.type]       ?? DAY_META.rest;
   const isDeload  = week.phase === 'deload';
@@ -596,6 +948,10 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
   const isRecover = day.type === 'recover';
   const isRest    = day.type === 'rest';
   const weekday   = WEEKDAYS[dayIdx] ?? '';
+
+  const [logMode,        setLogMode]        = useState(false);
+  const [logStyle,       setLogStyle]       = useState('one_at_a_time');
+  const [workoutSummary, setWorkoutSummary] = useState(null);
 
   // Next non-rest day for rest day preview
   let nextDay = null;
@@ -639,8 +995,8 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
         </div>
 
         {/* Header */}
-        <div style={{ padding: '0.75rem 1.25rem 0.875rem', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ padding: '0.75rem 1.25rem 0', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '0.75rem' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.3rem' }}>
                 <span style={{ backgroundColor: meta.bg, color: meta.color, padding: '0.2rem 0.7rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 500 }}>
@@ -659,31 +1015,81 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: C.textSecondary, lineHeight: 1, padding: '0 0.25rem', flexShrink: 0 }}>×</button>
           </div>
+
+          {/* Mode tabs — lifting days only */}
+          {isLift && (
+            <div style={{ display: 'flex' }}>
+              {[{ mode: false, label: 'View Routine' }, { mode: true, label: '▶ Log Workout' }].map(({ mode, label }) => (
+                <button
+                  key={String(mode)}
+                  onClick={() => setLogMode(mode)}
+                  style={{
+                    flex: 1, padding: '0.5rem', border: 'none',
+                    borderBottom: `2px solid ${logMode === mode ? TERRA : 'transparent'}`,
+                    backgroundColor: 'transparent',
+                    color: logMode === mode ? TERRA : C.textSecondary,
+                    fontWeight: logMode === mode ? 400 : 300,
+                    fontSize: '0.8rem', cursor: 'pointer',
+                    transition: 'all 0.15s', fontFamily: FONTS.body,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Scrollable content */}
         <div style={{ overflowY: 'auto', padding: '1.125rem 1.25rem', flex: 1 }}>
-          {isLift    && <LiftingDayContent day={day} phaseMeta={pm} isDeload={isDeload} />}
-          {isRecover && <RecoveryDayContent day={day} />}
-          {isRest    && <RestDayContent nextDay={nextDay} />}
+          {isLift && logMode
+            ? <LogModeContent
+                key={`log-${weekIdx}-${dayIdx}`}
+                day={day} cycle={cycle} weekIdx={weekIdx} user={user}
+                logStyle={logStyle} setLogStyle={setLogStyle}
+                onAllLogged={setWorkoutSummary}
+              />
+            : isLift
+              ? <LiftingDayContent day={day} phaseMeta={pm} isDeload={isDeload} />
+              : isRecover
+                ? <RecoveryDayContent day={day} />
+                : <RestDayContent nextDay={nextDay} />
+          }
         </div>
 
-        {/* Footer: Mark as Complete */}
+        {/* Footer */}
         <div style={{ padding: '0.75rem 1.25rem', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-          <button
-            onClick={onToggleComplete}
-            style={{
-              width: '100%', padding: '0.75rem',
-              borderRadius: '10px',
-              border: `1.5px solid ${isCompleted ? '#16a34a' : C.accent}`,
-              backgroundColor: isCompleted ? '#f0fdf4' : C.accent,
-              color: isCompleted ? '#16a34a' : '#fff',
-              fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer',
-              transition: 'all 0.2s', fontFamily: FONTS.body,
-            }}
-          >
-            {isCompleted ? '✓ Marked Complete' : 'Mark as Complete'}
-          </button>
+          {isLift && logMode ? (
+            workoutSummary ? (
+              <button
+                onClick={() => { if (!isCompleted) onToggleComplete(); onClose(); }}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: 'none', backgroundColor: '#16a34a', color: '#fff', fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s', fontFamily: FONTS.body }}
+              >
+                Complete Workout ✓
+              </button>
+            ) : (
+              <button
+                onClick={() => setLogMode(false)}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 300, fontSize: '0.875rem', cursor: 'pointer', fontFamily: FONTS.body }}
+              >
+                ← Back to View
+              </button>
+            )
+          ) : (
+            <button
+              onClick={onToggleComplete}
+              style={{
+                width: '100%', padding: '0.75rem', borderRadius: '10px',
+                border: `1.5px solid ${isCompleted ? '#16a34a' : C.accent}`,
+                backgroundColor: isCompleted ? '#f0fdf4' : C.accent,
+                color: isCompleted ? '#16a34a' : '#fff',
+                fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer',
+                transition: 'all 0.2s', fontFamily: FONTS.body,
+              }}
+            >
+              {isCompleted ? '✓ Marked Complete' : 'Mark as Complete'}
+            </button>
+          )}
         </div>
       </div>
     </div>

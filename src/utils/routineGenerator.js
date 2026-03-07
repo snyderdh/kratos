@@ -45,6 +45,20 @@ const ANTAGONIST_PAIRS = [
   ['legs', 'core'],
 ];
 
+// ── Compound exercise detection ───────────────────────────────────────────
+const COMPOUND_KEYWORDS = [
+  'bench press', 'press', 'deadlift', 'squat', 'row', 'pull-up', 'pull up',
+  'pullup', 'chin-up', 'chin up', 'chinup', 'pulldown', 'lunge', 'dip',
+  'hip thrust', 'push-up', 'push up', 'pushup', 'swing', 'clean', 'snatch',
+  'thruster', 'romanian', 'leg press', 'get-up', 'step-up', 'step up',
+  'split squat', 'hack squat', 'inverted',
+];
+
+export function isCompoundExercise(name) {
+  const lower = name.toLowerCase();
+  return COMPOUND_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 function shuffleArray(arr) {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -121,26 +135,34 @@ function applySupersetsToExercises(exercises) {
   return reordered;
 }
 
-function pickExercises(targetMuscles, availableEquipment, primaryGoal, count) {
+// ── Exercise picker: compound-first, goal-sorted, excludes used IDs ───────
+function pickExercises(targetMuscles, availableEquipment, primaryGoal, count, excludeIds = []) {
   const filtered = exercises.filter(
     (ex) =>
       targetMuscles.includes(ex.muscleGroup) &&
-      availableEquipment.includes(ex.equipment)
+      availableEquipment.includes(ex.equipment) &&
+      !excludeIds.includes(ex.id)
   );
 
-  const sorted = [...filtered].sort((a, b) => {
+  const compounds = filtered.filter((ex) => isCompoundExercise(ex.name));
+  const isolations = filtered.filter((ex) => !isCompoundExercise(ex.name));
+
+  function sortPool(pool) {
     if (primaryGoal === 'strength' || primaryGoal === 'power') {
-      const diff = { advanced: 0, intermediate: 1, beginner: 2 };
-      return diff[a.difficulty] - diff[b.difficulty];
+      // Hardest compounds first (advanced → intermediate → beginner), shuffled within tier
+      const tiers = { advanced: [], intermediate: [], beginner: [] };
+      pool.forEach((ex) => { (tiers[ex.difficulty] ?? tiers.beginner).push(ex); });
+      return [...shuffleArray(tiers.advanced), ...shuffleArray(tiers.intermediate), ...shuffleArray(tiers.beginner)];
     }
     if (primaryGoal === 'endurance') {
       const equipPriority = { bodyweight: 0, cables: 1, dumbbells: 2, barbell: 3 };
-      return equipPriority[a.equipment] - equipPriority[b.equipment];
+      return [...pool].sort((a, b) => (equipPriority[a.equipment] ?? 4) - (equipPriority[b.equipment] ?? 4));
     }
-    return 0;
-  });
+    return shuffleArray(pool);
+  }
 
-  return shuffleArray(sorted).slice(0, count);
+  // Compounds always lead the routine; isolations fill in after
+  return [...sortPool(compounds), ...sortPool(isolations)].slice(0, count);
 }
 
 function decorate(ex, config) {
@@ -152,7 +174,7 @@ function decorate(ex, config) {
   };
 }
 
-export function generateSingleDayRoutine({ goals, equipment, muscleGroups, exerciseCount }) {
+export function generateSingleDayRoutine({ goals, equipment, muscleGroups, exerciseCount, excludeIds = [] }) {
   const blendConfig = getBlendConfig(goals);
   const mainGoals = goals.filter((g) => g !== 'mobility');
 
@@ -179,7 +201,7 @@ export function generateSingleDayRoutine({ goals, equipment, muscleGroups, exerc
   }
 
   const primaryGoal = mainGoals[0];
-  const picked = pickExercises(muscleGroups, equipment, primaryGoal, exerciseCount);
+  const picked = pickExercises(muscleGroups, equipment, primaryGoal, exerciseCount, excludeIds);
   const mainExercises = picked.map((ex) => ({ ...decorate(ex, blendConfig), supersetGroup: null }));
   const orderedMain = blendConfig.supersets
     ? applySupersetsToExercises(mainExercises)

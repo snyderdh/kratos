@@ -262,11 +262,11 @@ export default function KratosSplit() {
       split:                'kratos_split',
       goal:                 resolvedGoal,
       goals:                [resolvedGoal],
-      equipment,
+      equipment:            [...equipment],
       weeks,
       is_public:            false,
       experience_level:     experience,
-      cardio_modalities:    cardioModalities,
+      cardio_modalities:    [...cardioModalities],
       cardio_stretch_ratio: cardioMins,
     });
 

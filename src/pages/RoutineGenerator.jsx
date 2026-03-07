@@ -30,7 +30,7 @@ const MUSCLES = [
   { value: 'core',      label: 'Core' },
 ];
 
-const COUNT_OPTIONS = [3, 4, 5, 6, 7, 8];
+const COUNT_OPTIONS = ['recommended', 3, 4, 5, 6, 7, 8];
 
 const TIME_LIMITS = [
   { value: 'no-limit', label: 'No limit' },
@@ -50,6 +50,42 @@ const difficultyBadge = {
   intermediate: { bg: '#fef9c3', text: '#ca8a04' },
   advanced:     { bg: '#fee2e2', text: '#dc2626' },
 };
+
+// ── Recommendation logic ──────────────────────────────────────────────────
+const GOAL_BASE = { strength: 4.5, power: 4.5, hypertrophy: 5.5, endurance: 7 };
+
+function calculateRecommended(goals, muscleGroups, timeLimit) {
+  const mainGoals = goals.filter((g) => g !== 'mobility');
+  let base;
+  if (mainGoals.length === 0) {
+    base = 4;
+  } else {
+    const sum = mainGoals.reduce((s, g) => s + (GOAL_BASE[g] ?? 5), 0);
+    base = Math.round(sum / mainGoals.length);
+  }
+  // More muscle groups → more exercises
+  const mgCount = muscleGroups.length;
+  if (mgCount <= 2) base = Math.max(3, base - 1);
+  else if (mgCount >= 5) base = Math.min(8, base + 1);
+  base = Math.max(3, Math.min(8, base));
+  // Never exceed what fits in the time limit
+  if (timeLimit !== 'no-limit') {
+    const blendConfig = getBlendConfig(goals);
+    const maxEx = maxExercisesForLimit(parseInt(timeLimit), blendConfig, goals.includes('mobility'));
+    base = Math.min(base, Math.max(1, maxEx));
+  }
+  return base;
+}
+
+function recommendationReason(goals, muscleGroups, timeLimit, count) {
+  const mainGoals = goals.filter((g) => g !== 'mobility');
+  const goalStr = mainGoals.length === 0
+    ? 'Mobility'
+    : mainGoals.map((g) => g.charAt(0).toUpperCase() + g.slice(1)).join(' + ');
+  const mgStr = `${muscleGroups.length} muscle group${muscleGroups.length !== 1 ? 's' : ''}`;
+  const timeStr = timeLimit !== 'no-limit' ? ` in ${timeLimit} min` : '';
+  return `${count} exercises recommended for ${goalStr} across ${mgStr}${timeStr}`;
+}
 
 // ── Time estimation helpers ───────────────────────────────────────────────
 function parseAvgReps(repsStr) {
@@ -271,7 +307,7 @@ export default function RoutineGenerator() {
   const [goals, setGoals] = useState(['hypertrophy']);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
   const [muscleGroups, setMuscleGroups] = useState(['chest', 'back', 'legs', 'shoulders']);
-  const [exerciseCount, setExerciseCount] = useState(5);
+  const [exerciseCount, setExerciseCount] = useState('recommended');
   const [routine, setRoutine] = useState(null);
   const [error, setError] = useState('');
   const [sharePublic, setSharePublic] = useState(false);
@@ -306,8 +342,13 @@ export default function RoutineGenerator() {
     setError('');
     setSaveSuccess(false);
 
-    // Determine effective count — shrink if needed to fit time limit
-    let effectiveCount = exerciseCount;
+    // Resolve 'recommended' to an actual number
+    const targetCount = exerciseCount === 'recommended'
+      ? calculateRecommended(goals, muscleGroups, timeLimit)
+      : exerciseCount;
+
+    // Cap to time limit (for manually chosen counts; recommended already accounts for it)
+    let effectiveCount = targetCount;
     let wasAdjusted = false;
     if (timeLimit !== 'no-limit') {
       const limitMin = parseInt(timeLimit);
@@ -549,6 +590,19 @@ export default function RoutineGenerator() {
           <section style={{ marginBottom: '1.75rem' }}>
             <h2 style={sectionLabel}>Available Equipment</h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+              {/* All pill */}
+              {(() => {
+                const allValues = EQUIPMENT.map((e) => e.value);
+                const allActive = allValues.every((v) => equipment.includes(v));
+                return (
+                  <button
+                    onClick={() => setEquipment(allActive ? [] : allValues)}
+                    style={{ padding: '0.45rem 1rem', borderRadius: '20px', border: `2px solid ${allActive ? orange : '#e5e7eb'}`, backgroundColor: allActive ? '#fff5f0' : '#f9fafb', color: allActive ? orange : '#374151', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer', transition: 'all 0.15s' }}
+                  >
+                    All
+                  </button>
+                );
+              })()}
               {EQUIPMENT.map((eq) => {
                 const active = equipment.includes(eq.value);
                 return (
@@ -581,13 +635,38 @@ export default function RoutineGenerator() {
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {COUNT_OPTIONS.map((n) => {
                 const active = exerciseCount === n;
+                const isRec = n === 'recommended';
                 return (
-                  <button key={n} onClick={() => setExerciseCount(n)} style={{ width: '48px', height: '48px', borderRadius: '8px', border: `2px solid ${active ? orange : '#e5e7eb'}`, backgroundColor: active ? orange : '#f9fafb', color: active ? '#ffffff' : '#374151', fontWeight: 800, fontSize: '1rem', cursor: 'pointer', transition: 'all 0.15s' }}>
-                    {n}
+                  <button
+                    key={String(n)}
+                    onClick={() => setExerciseCount(n)}
+                    style={isRec ? {
+                      height: '48px', padding: '0 1.1rem', borderRadius: '8px', whiteSpace: 'nowrap',
+                      border: `2px ${active ? 'solid' : 'dashed'} ${orange}`,
+                      backgroundColor: active ? orange : '#fff5f0',
+                      color: active ? '#ffffff' : orange,
+                      fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.15s',
+                    } : {
+                      width: '48px', height: '48px', borderRadius: '8px',
+                      border: `2px solid ${active ? orange : '#e5e7eb'}`,
+                      backgroundColor: active ? orange : '#f9fafb',
+                      color: active ? '#ffffff' : '#374151',
+                      fontWeight: 800, fontSize: '1rem', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    {isRec ? 'Recommended' : n}
                   </button>
                 );
               })}
             </div>
+            {exerciseCount === 'recommended' && (
+              <p style={{ marginTop: '0.6rem', fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                {recommendationReason(
+                  goals, muscleGroups, timeLimit,
+                  calculateRecommended(goals, muscleGroups, timeLimit)
+                )}
+              </p>
+            )}
           </section>
 
           {/* Time Limit */}

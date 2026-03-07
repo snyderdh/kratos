@@ -256,23 +256,38 @@ export default function KratosSplit() {
 
     const resolvedGoal = goalEmphasis || 'general_fitness';
 
-    const { error: dbErr } = await supabase.from('cycles').insert({
+    // Defensive: guarantee a proper JS array regardless of what state holds
+    const toArray = (v) => {
+      if (Array.isArray(v)) return [...v];
+      if (typeof v === 'string' && v.length > 0) return v.split(',').map((s) => s.trim()).filter(Boolean);
+      return [];
+    };
+
+    const payload = {
       user_id:              user.id,
       title,
       split:                'kratos_split',
       goal:                 resolvedGoal,
-      goals:                [resolvedGoal],
-      equipment:            [...equipment],
+      goals:                toArray([resolvedGoal]),
+      equipment:            toArray(equipment),
       weeks,
       is_public:            false,
       experience_level:     experience,
-      cardio_modalities:    [...cardioModalities],
+      cardio_modalities:    toArray(cardioModalities),
       cardio_stretch_ratio: cardioMins,
-    });
+    };
+
+    console.log('[KratosSplit] insert payload:', JSON.stringify({
+      ...payload,
+      weeks: `[${payload.weeks.length} weeks — omitted]`,
+    }, null, 2));
+
+    const { error: dbErr } = await supabase.from('cycles').insert(payload);
 
     setGenerating(false);
 
     if (dbErr) {
+      console.error('[KratosSplit] Supabase error full:', dbErr);
       setError('Failed to save: ' + dbErr.message);
     } else {
       setSaveSuccess(true);

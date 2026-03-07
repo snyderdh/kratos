@@ -602,28 +602,39 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
   const [weight, setWeight] = useState(() => suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
   const [reps,   setReps]   = useState('');
   const [rpe,    setRpe]    = useState('');
+  const [error,  setError]  = useState('');
 
   const isDone     = activeSetIdx >= numSets;
   const currentSet = activeSetIdx + 1;
   const isLastSet  = currentSet === numSets;
-  const canSubmit  = weight.trim() !== '' && reps.trim() !== '';
+  const hasValues  = weight.trim() !== '' && reps.trim() !== '';
 
   useEffect(() => {
     if (suggestion?.suggestWeight && !weight) setWeight(String(suggestion.suggestWeight));
   }, [suggestion]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleComplete() {
-    if (!canSubmit || saving) return;
-    onCompleteSet(exIdx, activeSetIdx, { weight, reps, rpe });
-    setReps('');
-    setRpe('');
+  async function handleComplete() {
+    if (saving) return;
+    if (!weight.trim() || !reps.trim()) {
+      setError('Enter weight and reps to log this set.');
+      return;
+    }
+    setError('');
+    const ok = await onCompleteSet(exIdx, activeSetIdx, { weight, reps, rpe });
+    if (ok === false) {
+      setError('Save failed — check your connection or create the workout_logs table in Supabase.');
+    } else {
+      setReps('');
+      setRpe('');
+    }
   }
 
-  const inputStyle = { width: '100%', padding: '0.5rem 0.5rem', borderRadius: '8px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '0.9rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
+  // 1rem = 16px prevents iOS Safari auto-zoom on input focus
+  const inputStyle = { width: '100%', padding: '0.5rem', borderRadius: '8px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '1rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
 
   return (
-    <div style={{ borderRadius: '10px', border: `1px solid ${isDone ? '#86efac' : C.border}`, backgroundColor: isDone ? '#f0fdf4' : C.bg, overflow: 'hidden', marginBottom: '0.5rem' }}>
-      <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isDone ? '#bbf7d0' : C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ borderRadius: '10px', border: `1px solid ${isDone ? '#86efac' : C.border}`, backgroundColor: isDone ? '#f0fdf4' : C.bg, overflow: 'visible', marginBottom: '0.5rem' }}>
+      <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isDone ? '#bbf7d0' : C.border}`, borderRadius: isDone ? '10px 10px 0 0' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontWeight: 400, color: isDone ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
           <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{numSets} × {ex.reps} · Target RPE {ex.targetRPE ?? '—'}</div>
@@ -666,14 +677,33 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
             ].map(({ label, val, set, ph, mode }) => (
               <div key={label}>
                 <label style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.25rem' }}>{label}</label>
-                <input type="number" inputMode={mode} value={val} onChange={(e) => set(e.target.value)} placeholder={ph} style={inputStyle} />
+                <input
+                  type="text"
+                  inputMode={mode}
+                  value={val}
+                  onChange={(e) => { set(e.target.value); setError(''); }}
+                  placeholder={ph}
+                  style={inputStyle}
+                />
               </div>
             ))}
           </div>
+          {error && (
+            <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 300, marginBottom: '0.5rem', padding: '0.4rem 0.625rem', backgroundColor: '#fef2f2', borderRadius: '6px', border: '1px solid #fecaca' }}>
+              {error}
+            </div>
+          )}
           <button
             onClick={handleComplete}
-            disabled={!canSubmit || saving}
-            style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none', backgroundColor: canSubmit && !saving ? TERRA : '#e5e7eb', color: canSubmit && !saving ? '#fff' : C.textSecondary, fontWeight: 400, fontSize: '0.875rem', cursor: canSubmit && !saving ? 'pointer' : 'default', transition: 'all 0.15s', fontFamily: FONTS.body }}
+            style={{
+              width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none',
+              backgroundColor: saving ? '#e5e7eb' : hasValues ? TERRA : '#d1d5db',
+              color: saving ? C.textSecondary : hasValues ? '#fff' : '#6b7280',
+              fontWeight: 400, fontSize: '0.875rem',
+              cursor: saving ? 'default' : 'pointer',
+              transition: 'all 0.15s', fontFamily: FONTS.body,
+              pointerEvents: saving ? 'none' : 'auto',
+            }}
           >
             {saving ? 'Saving…' : isLastSet ? 'Complete Last Set ✓' : `Complete Set ${currentSet} →`}
           </button>
@@ -686,6 +716,7 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
 function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, saving, onSaveAll }) {
   const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
   const isAllSaved = savedSets.length >= numSets;
+  const [error, setError] = useState('');
 
   const [rows, setRows] = useState(() =>
     Array.from({ length: numSets }, () => ({
@@ -703,14 +734,30 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
 
   function updateRow(i, field, val) {
     setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+    setError('');
   }
 
-  const canSave = !isAllSaved && rows.some((r) => r.weight.trim() !== '' || r.reps.trim() !== '');
-  const inputStyle = { width: '100%', padding: '0.4rem 0.45rem', borderRadius: '6px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '0.85rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
+  const hasAnyValue = rows.some((r) => r.weight.trim() !== '' || r.reps.trim() !== '');
+
+  // 1rem = 16px prevents iOS Safari auto-zoom on input focus
+  const inputStyle = { width: '100%', padding: '0.4rem 0.45rem', borderRadius: '6px', border: `1.5px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontSize: '1rem', fontWeight: 400, fontFamily: FONTS.body, boxSizing: 'border-box', outline: 'none' };
+
+  async function handleSave() {
+    if (saving) return;
+    if (!hasAnyValue) {
+      setError('Enter at least one weight or rep count.');
+      return;
+    }
+    setError('');
+    const ok = await onSaveAll(exIdx, rows);
+    if (ok === false) {
+      setError('Save failed — check your connection or create the workout_logs table in Supabase.');
+    }
+  }
 
   return (
-    <div style={{ borderRadius: '10px', border: `1px solid ${isAllSaved ? '#86efac' : C.border}`, backgroundColor: isAllSaved ? '#f0fdf4' : C.bg, overflow: 'hidden', marginBottom: '0.5rem' }}>
-      <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isAllSaved ? '#bbf7d0' : C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ borderRadius: '10px', border: `1px solid ${isAllSaved ? '#86efac' : C.border}`, backgroundColor: isAllSaved ? '#f0fdf4' : C.bg, overflow: 'visible', marginBottom: '0.5rem' }}>
+      <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isAllSaved ? '#bbf7d0' : C.border}`, borderRadius: '10px 10px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontWeight: 400, color: isAllSaved ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
           <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{numSets} × {ex.reps} · Target RPE {ex.targetRPE ?? '—'}</div>
@@ -749,7 +796,7 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
                 {(['weight', 'reps', 'rpe']).map((field) => (
                   <input
                     key={field}
-                    type="number"
+                    type="text"
                     inputMode={field === 'reps' ? 'numeric' : 'decimal'}
                     value={row[field]}
                     onChange={(e) => updateRow(i, field, e.target.value)}
@@ -760,10 +807,22 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
               </div>
             ))}
           </div>
+          {error && (
+            <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 300, marginBottom: '0.5rem', padding: '0.4rem 0.625rem', backgroundColor: '#fef2f2', borderRadius: '6px', border: '1px solid #fecaca' }}>
+              {error}
+            </div>
+          )}
           <button
-            onClick={() => onSaveAll(exIdx, rows)}
-            disabled={!canSave || saving}
-            style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none', backgroundColor: canSave && !saving ? TERRA : '#e5e7eb', color: canSave && !saving ? '#fff' : C.textSecondary, fontWeight: 400, fontSize: '0.875rem', cursor: canSave && !saving ? 'pointer' : 'default', transition: 'all 0.15s', fontFamily: FONTS.body }}
+            onClick={handleSave}
+            style={{
+              width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none',
+              backgroundColor: saving ? '#e5e7eb' : hasAnyValue ? TERRA : '#d1d5db',
+              color: saving ? C.textSecondary : hasAnyValue ? '#fff' : '#6b7280',
+              fontWeight: 400, fontSize: '0.875rem',
+              cursor: saving ? 'default' : 'pointer',
+              transition: 'all 0.15s', fontFamily: FONTS.body,
+              pointerEvents: saving ? 'none' : 'auto',
+            }}
           >
             {saving ? 'Saving…' : 'Save Exercise ✓'}
           </button>
@@ -838,15 +897,15 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
       exercise_id:    ex.id ?? null,
       exercise_name:  ex.name,
       set_number:     setIdx + 1,
-      weight_lbs:     weight !== '' ? parseFloat(weight)      : null,
-      reps_completed: reps   !== '' ? parseInt(reps, 10)       : null,
-      rpe_actual:     rpe    !== '' ? parseFloat(rpe)          : null,
+      weight_lbs:     weight !== '' ? parseFloat(weight)   : null,
+      reps_completed: reps   !== '' ? parseInt(reps, 10)   : null,
+      rpe_actual:     rpe    !== '' ? parseFloat(rpe)      : null,
     });
     setSavingIdx(null);
-    if (!error) {
-      setLogData((prev) => ({ ...prev, [exIdx]: { sets: [...(prev[exIdx]?.sets ?? []), { set_number: setIdx + 1, weight_lbs: weight, reps_completed: reps, rpe_actual: rpe, saved: true }] } }));
-      setActiveSets((prev) => ({ ...prev, [exIdx]: setIdx + 1 }));
-    }
+    if (error) return false;
+    setLogData((prev) => ({ ...prev, [exIdx]: { sets: [...(prev[exIdx]?.sets ?? []), { set_number: setIdx + 1, weight_lbs: weight, reps_completed: reps, rpe_actual: rpe, saved: true }] } }));
+    setActiveSets((prev) => ({ ...prev, [exIdx]: setIdx + 1 }));
+    return true;
   }
 
   async function handleSaveAll(exIdx, rows) {
@@ -866,10 +925,10 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
     }));
     const { error } = await supabase.from('workout_logs').insert(inserts);
     setSavingIdx(null);
-    if (!error) {
-      setLogData((prev) => ({ ...prev, [exIdx]: { sets: rows.map((row, i) => ({ set_number: i + 1, weight_lbs: row.weight, reps_completed: row.reps, rpe_actual: row.rpe, saved: true })) } }));
-      setActiveSets((prev) => ({ ...prev, [exIdx]: exercises[exIdx]?.sets ?? 3 }));
-    }
+    if (error) return false;
+    setLogData((prev) => ({ ...prev, [exIdx]: { sets: rows.map((row, i) => ({ set_number: i + 1, weight_lbs: row.weight, reps_completed: row.reps, rpe_actual: row.rpe, saved: true })) } }));
+    setActiveSets((prev) => ({ ...prev, [exIdx]: exercises[exIdx]?.sets ?? 3 }));
+    return true;
   }
 
   const allLogged = exercises.length > 0 && exercises.every((ex, idx) =>

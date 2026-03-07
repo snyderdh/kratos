@@ -6,6 +6,7 @@ import RoutineGenerator from './pages/RoutineGenerator';
 import ExerciseLibrary from './pages/ExerciseLibrary';
 import SavedRoutines from './pages/SavedRoutines';
 import Community from './pages/Community';
+import Athletes from './pages/Athletes';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 
@@ -29,6 +30,7 @@ export default function App() {
                     <Routes>
                       <Route path="/" element={<RoutineGenerator />} />
                       <Route path="/community" element={<Community />} />
+                      <Route path="/athletes" element={<Athletes />} />
                       <Route path="/library" element={<ExerciseLibrary />} />
                       <Route path="/saved" element={<SavedRoutines />} />
                     </Routes>

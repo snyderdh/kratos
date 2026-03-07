@@ -115,10 +115,10 @@ const EQUIPMENT_OPTIONS = [
 const CARDIO_MODALITIES = [
   { value: 'cycling',    label: 'Cycling'    },
   { value: 'rowing',     label: 'Rowing'     },
-  { value: 'running',    label: 'Running'    },
-  { value: 'walking',    label: 'Walking'    },
-  { value: 'skierg',     label: 'Ski Erg'    },
+  { value: 'treadmill',  label: 'Treadmill'  },
+  { value: 'stairmaster',label: 'Stairmaster' },
   { value: 'elliptical', label: 'Elliptical' },
+  { value: 'walking',    label: 'Walking'    },
 ];
 
 const SESSION_LENGTHS = [
@@ -179,7 +179,7 @@ export default function KratosSplit() {
   const [experience,     setExperience]     = useState('intermediate');
   const [goalEmphasis,   setGoalEmphasis]   = useState('hypertrophy');
   const [equipment,      setEquipment]      = useState(['barbell', 'dumbbells', 'cables', 'bodyweight']);
-  const [cardioModality, setCardioModality] = useState('cycling');
+  const [cardioModalities, setCardioModalities] = useState(['cycling']);
   const [cardioMins,     setCardioMins]     = useState(30);
   const [sessionMins,    setSessionMins]    = useState(60);
   const [cycleTitle,     setCycleTitle]     = useState('');
@@ -191,6 +191,14 @@ export default function KratosSplit() {
 
   function toggleEquipment(v) {
     setEquipment((prev) =>
+      prev.includes(v)
+        ? prev.length > 1 ? prev.filter((x) => x !== v) : prev
+        : [...prev, v]
+    );
+  }
+
+  function toggleCardioModality(v) {
+    setCardioModalities((prev) =>
       prev.includes(v)
         ? prev.length > 1 ? prev.filter((x) => x !== v) : prev
         : [...prev, v]
@@ -227,19 +235,19 @@ export default function KratosSplit() {
       const pullR = makeRoutine(['back', 'arms']);
       const legsR = makeRoutine(['legs', 'core']);
 
-      const cardioBlock = {
-        modality:    cardioModality,
+      const makeCardioBlock = (recoverIdx) => ({
+        modality:    cardioModalities[recoverIdx % cardioModalities.length],
         durationMin: cardioMins,
         intensity:   'Zone 2 (60–70% max HR, conversational pace)',
-      };
+      });
 
       const days = [
         { type: 'push',    label: 'Push',    phase: phaseName, exercises: pushR.exercises, estimatedMin: pushR.totalEstimatedMin, explanation: pushR.explanation },
-        { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock, stretches: STRETCH_ROUTINE },
+        { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock: makeCardioBlock(0), stretches: STRETCH_ROUTINE },
         { type: 'pull',    label: 'Pull',    phase: phaseName, exercises: pullR.exercises, estimatedMin: pullR.totalEstimatedMin, explanation: pullR.explanation },
-        { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock, stretches: STRETCH_ROUTINE },
+        { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock: makeCardioBlock(1), stretches: STRETCH_ROUTINE },
         { type: 'legs',    label: 'Legs',    phase: phaseName, exercises: legsR.exercises, estimatedMin: legsR.totalEstimatedMin, explanation: legsR.explanation },
-        { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock, stretches: STRETCH_ROUTINE },
+        { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock: makeCardioBlock(2), stretches: STRETCH_ROUTINE },
         { type: 'rest',    label: 'Rest',    phase: phaseName },
       ];
 
@@ -247,13 +255,16 @@ export default function KratosSplit() {
     }
 
     const { error: dbErr } = await supabase.from('cycles').insert({
-      user_id:   user.id,
+      user_id:              user.id,
       title,
-      split:     'kratos_split',
-      goals:     [goalEmphasis],
+      split:                'kratos_split',
+      goals:                [goalEmphasis],
       equipment,
       weeks,
-      is_public: false,
+      is_public:            false,
+      experience_level:     experience,
+      cardio_modalities:    cardioModalities,
+      cardio_stretch_ratio: cardioMins,
     });
 
     setGenerating(false);
@@ -623,11 +634,11 @@ export default function KratosSplit() {
           <div>
             <label style={labelBase}>Recovery Day Cardio</label>
             <p style={{ fontSize: '0.78rem', color: C.textSecondary, margin: '0 0 0.5rem', fontWeight: 300 }}>
-              Zone 2 intensity (60–70% max HR, conversational pace) · {cardioMins} min per session
+              Zone 2 intensity (60–70% max HR, conversational pace) · {cardioMins} min per session · rotates across recovery days
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.875rem' }}>
               {CARDIO_MODALITIES.map(({ value, label }) => (
-                <button key={value} onClick={() => setCardioModality(value)} style={pill(cardioModality === value)}>
+                <button key={value} onClick={() => toggleCardioModality(value)} style={pill(cardioModalities.includes(value))}>
                   {label}
                 </button>
               ))}

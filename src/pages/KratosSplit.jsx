@@ -267,7 +267,6 @@ export default function KratosSplit() {
       user_id:              user.id,
       title,
       split:                'kratos_split',
-      goal:                 resolvedGoal,
       goals:                toArray([resolvedGoal]),
       equipment:            toArray(equipment),
       weeks,
@@ -277,10 +276,19 @@ export default function KratosSplit() {
       cardio_stretch_ratio: cardioMins,
     };
 
-    console.log('[KratosSplit] insert payload:', JSON.stringify({
-      ...payload,
-      weeks: `[${payload.weeks.length} weeks — omitted]`,
-    }, null, 2));
+    console.log('[KratosSplit] insert payload (non-weeks fields):', {
+      user_id:              payload.user_id,
+      title:                payload.title,
+      split:                payload.split,
+      goals:                payload.goals,
+      equipment:            payload.equipment,
+      is_public:            payload.is_public,
+      experience_level:     payload.experience_level,
+      cardio_modalities:    payload.cardio_modalities,
+      cardio_stretch_ratio: payload.cardio_stretch_ratio,
+      weeks_count:          payload.weeks.length,
+      weeks_is_array:       Array.isArray(payload.weeks),
+    });
 
     const { error: dbErr } = await supabase.from('cycles').insert(payload);
 

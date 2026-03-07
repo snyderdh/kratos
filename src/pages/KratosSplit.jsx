@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generateAdvancedRoutine } from '../utils/routineGenerator';
+import { buildDayPools, generateKratosSplitDay } from '../utils/kratosSplitPeriodization';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { C, FONTS, card, btnPrimary, inputBase, labelBase } from '../theme';
@@ -211,8 +211,14 @@ export default function KratosSplit() {
     setError('');
     setSaveSuccess(false);
 
-    const philosophy = EXPERIENCE_LEVELS.find((e) => e.value === experience)?.philosophy ?? 'general_fitness';
     const title = cycleTitle.trim() || 'Kratos Split — 12-Week Block';
+
+    // Build fixed exercise pools once — pools are shared across all 12 weeks
+    const pools = {
+      push: buildDayPools('push', equipment),
+      pull: buildDayPools('pull', equipment),
+      legs: buildDayPools('legs', equipment),
+    };
 
     const weeks = [];
 
@@ -221,19 +227,9 @@ export default function KratosSplit() {
       const durMult   = PHASE_DUR_MULT[phaseName];
       const phaseDur  = sessionMins ? Math.max(30, Math.round(sessionMins * durMult)) : null;
 
-      const makeRoutine = (muscleGroups) =>
-        generateAdvancedRoutine({
-          goals: [goalEmphasis],
-          equipment,
-          muscleGroups,
-          philosophy,
-          durationLimit: phaseDur,
-          excludedExerciseIds: [],
-        });
-
-      const pushR = makeRoutine(['chest', 'shoulders', 'arms']);
-      const pullR = makeRoutine(['back', 'arms']);
-      const legsR = makeRoutine(['legs', 'core']);
+      const pushR = generateKratosSplitDay('push', pools.push, wk, phaseName, phaseDur);
+      const pullR = generateKratosSplitDay('pull', pools.pull, wk, phaseName, phaseDur);
+      const legsR = generateKratosSplitDay('legs', pools.legs, wk, phaseName, phaseDur);
 
       const makeCardioBlock = (recoverIdx) => ({
         modality:    cardioModalities[recoverIdx % cardioModalities.length],
@@ -242,11 +238,11 @@ export default function KratosSplit() {
       });
 
       const days = [
-        { type: 'push',    label: 'Push',    phase: phaseName, exercises: pushR.exercises, estimatedMin: pushR.totalEstimatedMin, explanation: pushR.explanation },
+        { type: 'push',    label: 'Push',    phase: phaseName, exercises: pushR.exercises, estimatedMin: pushR.totalEstimatedMin, explanation: pushR.explanation, compoundAlt: pushR.compoundAlt, accessoryNote: pushR.accessoryNote },
         { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock: makeCardioBlock(0), stretches: STRETCH_ROUTINE },
-        { type: 'pull',    label: 'Pull',    phase: phaseName, exercises: pullR.exercises, estimatedMin: pullR.totalEstimatedMin, explanation: pullR.explanation },
+        { type: 'pull',    label: 'Pull',    phase: phaseName, exercises: pullR.exercises, estimatedMin: pullR.totalEstimatedMin, explanation: pullR.explanation, compoundAlt: pullR.compoundAlt, accessoryNote: pullR.accessoryNote },
         { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock: makeCardioBlock(1), stretches: STRETCH_ROUTINE },
-        { type: 'legs',    label: 'Legs',    phase: phaseName, exercises: legsR.exercises, estimatedMin: legsR.totalEstimatedMin, explanation: legsR.explanation },
+        { type: 'legs',    label: 'Legs',    phase: phaseName, exercises: legsR.exercises, estimatedMin: legsR.totalEstimatedMin, explanation: legsR.explanation, compoundAlt: legsR.compoundAlt, accessoryNote: legsR.accessoryNote },
         { type: 'recover', label: 'Recover', phase: phaseName, cardioBlock: makeCardioBlock(2), stretches: STRETCH_ROUTINE },
         { type: 'rest',    label: 'Rest',    phase: phaseName },
       ];

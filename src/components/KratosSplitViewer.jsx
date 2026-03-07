@@ -333,6 +333,7 @@ function ExerciseCard({ ex, num }) {
 // ── Modal content: lifting day ─────────────────────────────────────────
 function LiftingDayContent({ day, phaseMeta, isDeload }) {
   const exercises = day.exercises ?? [];
+  const ca = day.compoundAlt;
 
   // Collect unique phaseIds in insertion order
   const phaseOrder = [];
@@ -347,6 +348,23 @@ function LiftingDayContent({ day, phaseMeta, isDeload }) {
         <div style={{ padding: '0.625rem 0.875rem', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb', borderLeft: '3px solid #6b7280' }}>
           <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.2rem' }}>Deload Week</div>
           <div style={{ fontSize: '0.78rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.55 }}>Volume reduced ~40%. Keep the same loads — cut sets. Execution quality is the priority.</div>
+        </div>
+      )}
+
+      {/* Compound rotation note */}
+      {ca && !ca.sameCompound && (
+        <div style={{ padding: '0.625rem 0.875rem', backgroundColor: '#F5EDE6', borderRadius: '8px', border: `1px solid ${TERRA}30`, display: 'flex', alignItems: 'flex-start', gap: '0.625rem' }}>
+          <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: TERRA, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+            <span style={{ color: '#fff', fontSize: '0.55rem', fontWeight: 700 }}>↔</span>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 500, color: TERRA, marginBottom: '0.15rem' }}>
+              Primary this week: {ca.currentName}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>
+              Alternating with <strong style={{ color: C.text, fontWeight: 400 }}>{ca.altName}</strong> — next swap Week {ca.nextSwapWeek + 1}
+            </div>
+          </div>
         </div>
       )}
 
@@ -386,6 +404,13 @@ function LiftingDayContent({ day, phaseMeta, isDeload }) {
           </div>
         );
       })}
+
+      {/* Accessory rotation note — shown once after accessory phase */}
+      {day.accessoryNote && exercises.some((e) => e.phaseId === 'accessory') && (
+        <div style={{ padding: '0.5rem 0.75rem', backgroundColor: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '0.7rem', color: '#16a34a', fontWeight: 300 }}>
+          {day.accessoryNote}
+        </div>
+      )}
 
       {exercises.length === 0 && (
         <p style={{ textAlign: 'center', color: C.textSecondary, fontStyle: 'italic', fontWeight: 300, padding: '1rem 0' }}>No exercises generated.</p>

@@ -94,3 +94,29 @@ export function getReplacementExercise({ exercise, equipment, muscleGroups, excl
   const shuffled = shuffleArray(pool);
   return decorate(shuffled[0], config);
 }
+
+// Returns all alternatives for the replace modal, prioritising same muscle group
+export function getAlternativeExercises({ exercise, equipment, excludeIds, goal }) {
+  const config = goalConfig[goal] || goalConfig.hypertrophy;
+
+  const pool = exercises.filter(
+    (ex) =>
+      ex.muscleGroup === exercise.muscleGroup &&
+      equipment.includes(ex.equipment) &&
+      !excludeIds.includes(ex.id)
+  );
+
+  const sorted = [...pool].sort((a, b) => {
+    if (goal === 'strength') {
+      const diff = { advanced: 0, intermediate: 1, beginner: 2 };
+      return diff[a.difficulty] - diff[b.difficulty];
+    }
+    if (goal === 'endurance') {
+      const equipPriority = { bodyweight: 0, cables: 1, dumbbells: 2, barbell: 3 };
+      return equipPriority[a.equipment] - equipPriority[b.equipment];
+    }
+    return 0;
+  });
+
+  return sorted.map((ex) => decorate(ex, config));
+}

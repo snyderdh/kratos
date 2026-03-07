@@ -6,6 +6,7 @@ const orange = '#FF6B2B';
 
 const navLinks = [
   { to: '/', label: 'Routine Generator' },
+  { to: '/community', label: 'Community' },
   { to: '/library', label: 'Exercise Library' },
   { to: '/saved', label: 'Saved Routines' },
 ];

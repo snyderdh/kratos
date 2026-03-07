@@ -180,7 +180,7 @@ export default function Home() {
 
       const { data: anns } = await supabase
         .from('announcements')
-        .select('*')
+        .select('*, profiles(name, username)')
         .order('created_at', { ascending: false })
         .limit(10);
       setAnnouncements(anns ?? []);
@@ -221,14 +221,14 @@ export default function Home() {
     if (!newAnnouncement.trim() || postingAnnouncement) return;
     setAnnouncementError('');
     setPostingAnnouncement(true);
-    const username = profile?.name || user?.email?.split('@')[0] || 'Athlete';
     const { data, error: err } = await supabase
       .from('announcements')
-      .insert({ user_id: user.id, username, content: newAnnouncement.trim() })
-      .select()
+      .insert({ user_id: user.id, content: newAnnouncement.trim() })
+      .select('*, profiles(name, username)')
       .single();
     setPostingAnnouncement(false);
     if (err) {
+      console.error('Announcements insert error:', JSON.stringify(err, null, 2));
       setAnnouncementError('Could not post. Run the announcements SQL in your Supabase dashboard first.');
     } else {
       setAnnouncements((prev) => [data, ...prev].slice(0, 10));
@@ -505,11 +505,11 @@ export default function Home() {
             {announcements.map((ann) => (
               <div key={ann.id} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 400, color: '#fff', flexShrink: 0 }}>
-                  {ann.username?.[0]?.toUpperCase() ?? '?'}
+                  {(ann.profiles?.name || ann.profiles?.username || '?')[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 400, fontSize: '0.82rem', color: C.text }}>{ann.username}</span>
+                    <span style={{ fontWeight: 400, fontSize: '0.82rem', color: C.text }}>{ann.profiles?.name?.split(' ')[0] || ann.profiles?.username || 'Athlete'}</span>
                     <span style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300 }}>{relTime(ann.created_at)}</span>
                   </div>
                   <div style={{ fontSize: '0.85rem', color: C.text, marginTop: '0.1rem', wordBreak: 'break-word', lineHeight: 1.5, fontWeight: 300 }}>

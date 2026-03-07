@@ -894,20 +894,15 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
       cycle_id:       cycle.id,
       week_number:    weekIdx + 1,
       day_type:       day.type,
-      exercise_id:    ex.id ?? null,
       exercise_name:  ex.name,
       set_number:     setIdx + 1,
       weight_lbs:     weight !== '' ? parseFloat(weight)   : null,
       reps_completed: reps   !== '' ? parseInt(reps, 10)   : null,
       rpe_actual:     rpe    !== '' ? parseFloat(rpe)      : null,
     };
-    console.log('[workout_logs] INSERT payload (single set):', payload);
     const { error } = await supabase.from('workout_logs').insert(payload);
     setSavingIdx(null);
-    if (error) {
-      console.error('[workout_logs] INSERT error:', { message: error.message, code: error.code, details: error.details, hint: error.hint, full: error });
-      return false;
-    }
+    if (error) return false;
     setLogData((prev) => ({ ...prev, [exIdx]: { sets: [...(prev[exIdx]?.sets ?? []), { set_number: setIdx + 1, weight_lbs: weight, reps_completed: reps, rpe_actual: rpe, saved: true }] } }));
     setActiveSets((prev) => ({ ...prev, [exIdx]: setIdx + 1 }));
     return true;
@@ -921,20 +916,15 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
       cycle_id:       cycle.id,
       week_number:    weekIdx + 1,
       day_type:       day.type,
-      exercise_id:    ex.id ?? null,
       exercise_name:  ex.name,
       set_number:     i + 1,
       weight_lbs:     row.weight !== '' ? parseFloat(row.weight) : null,
       reps_completed: row.reps   !== '' ? parseInt(row.reps, 10) : null,
       rpe_actual:     row.rpe    !== '' ? parseFloat(row.rpe)    : null,
     }));
-    console.log('[workout_logs] INSERT payload (all sets):', inserts);
     const { error } = await supabase.from('workout_logs').insert(inserts);
     setSavingIdx(null);
-    if (error) {
-      console.error('[workout_logs] INSERT error:', { message: error.message, code: error.code, details: error.details, hint: error.hint, full: error });
-      return false;
-    }
+    if (error) return false;
     setLogData((prev) => ({ ...prev, [exIdx]: { sets: rows.map((row, i) => ({ set_number: i + 1, weight_lbs: row.weight, reps_completed: row.reps, rpe_actual: row.rpe, saved: true })) } }));
     setActiveSets((prev) => ({ ...prev, [exIdx]: exercises[exIdx]?.sets ?? 3 }));
     return true;

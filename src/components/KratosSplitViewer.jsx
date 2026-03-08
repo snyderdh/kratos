@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Info } from 'lucide-react';
 import { C, FONTS } from '../theme';
+import ExerciseInfoModal from './ExerciseInfoModal';
 import { useAuth } from '../context/AuthContext';
 import { useActiveWorkout } from '../context/ActiveWorkoutContext';
 import { supabase } from '../supabase';
@@ -383,12 +385,14 @@ function WarmUpSets({ warmupSets }) {
 
 // ── Exercise card ──────────────────────────────────────────────────────
 function ExerciseCard({ ex, num }) {
-  const [showCue, setShowCue] = useState(false);
+  const [showCue,  setShowCue]  = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
   const isPrimary     = ex.phaseId === 'primary';
   const isIntensifier = ex.phaseId === 'intensifier';
 
   return (
+    <>
     <div style={{ borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: C.bg, overflow: 'hidden' }}>
       <div style={{ padding: '0.65rem 0.875rem' }}>
         {/* Top row: number + name + badges */}
@@ -402,6 +406,13 @@ function ExerciseCard({ ex, num }) {
                 {ex.supersetLabel ? <span style={{ color: pc.text, fontWeight: 500 }}>{ex.supersetLabel} – </span> : null}
                 {ex.name}
               </span>
+              <button
+                onClick={() => setShowInfo(true)}
+                title="Exercise guide"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0', display: 'flex', alignItems: 'center', lineHeight: 1, flexShrink: 0 }}
+              >
+                <Info size={13} strokeWidth={1.75} />
+              </button>
               {/* Phase badge */}
               <span style={{ fontSize: '0.58rem', padding: '0.1rem 0.4rem', borderRadius: '999px', border: `1px solid ${pc.border}50`, backgroundColor: pc.bg, color: pc.text, fontWeight: 500, letterSpacing: '0.03em', flexShrink: 0 }}>
                 {PHASE_EX_LABELS[ex.phaseId]?.label ?? ex.phaseId}
@@ -457,6 +468,8 @@ function ExerciseCard({ ex, num }) {
       {/* Warm-up sets (primary only) */}
       {isPrimary && <WarmUpSets warmupSets={ex.warmupSets} />}
     </div>
+    {showInfo && <ExerciseInfoModal exerciseName={ex.name} onClose={() => setShowInfo(false)} />}
+    </>
   );
 }
 
@@ -669,6 +682,7 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
   const [duration, setDuration] = useState('');
   const [rpe,      setRpe]      = useState('');
   const [error,    setError]    = useState('');
+  const [showInfo, setShowInfo] = useState(false);
 
   const isDone     = activeSetIdx >= numSets;
   const currentSet = activeSetIdx + 1;
@@ -740,10 +754,16 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
   }
 
   return (
+    <>
     <div style={{ borderRadius: '10px', border: `1px solid ${isDone ? '#86efac' : C.border}`, backgroundColor: isDone ? '#f0fdf4' : C.bg, overflow: 'visible', marginBottom: '0.5rem' }}>
       <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isDone ? '#bbf7d0' : C.border}`, borderRadius: isDone ? '10px 10px 0 0' : undefined, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontWeight: 400, color: isDone ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 400, color: isDone ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</span>
+            <button onClick={() => setShowInfo(true)} title="Exercise guide" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <Info size={13} strokeWidth={1.75} />
+            </button>
+          </div>
           <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{formatPrescription(ex)} · Target RPE {ex.targetRPE ?? '—'}</div>
         </div>
         {isDone && (
@@ -813,6 +833,8 @@ function ExerciseLogOneAtATime({ ex, exIdx, numSets, savedSets, activeSetIdx, su
         </div>
       )}
     </div>
+    {showInfo && <ExerciseInfoModal exerciseName={ex.name} onClose={() => setShowInfo(false)} />}
+    </>
   );
 }
 
@@ -820,7 +842,8 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
   const pc = PHASE_EX_COLORS[ex.phaseId] ?? PHASE_EX_COLORS.accessory;
   const tt = getTrackingType(ex);
   const isAllSaved = savedSets.length >= numSets;
-  const [error, setError] = useState('');
+  const [error,    setError]    = useState('');
+  const [showInfo, setShowInfo] = useState(false);
 
   const makeRow = () => tt === 'time'
     ? { duration: '', rpe: String(ex.targetRPE ?? 7) }
@@ -888,10 +911,16 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
   }
 
   return (
+    <>
     <div style={{ borderRadius: '10px', border: `1px solid ${isAllSaved ? '#86efac' : C.border}`, backgroundColor: isAllSaved ? '#f0fdf4' : C.bg, overflow: 'visible', marginBottom: '0.5rem' }}>
       <div style={{ padding: '0.625rem 0.875rem', borderBottom: `1px solid ${isAllSaved ? '#bbf7d0' : C.border}`, borderRadius: '10px 10px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontWeight: 400, color: isAllSaved ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 400, color: isAllSaved ? '#16a34a' : C.text, fontSize: '0.875rem' }}>{ex.name}</span>
+            <button onClick={() => setShowInfo(true)} title="Exercise guide" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <Info size={13} strokeWidth={1.75} />
+            </button>
+          </div>
           <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300 }}>{formatPrescription(ex)} · Target RPE {ex.targetRPE ?? '—'}</div>
         </div>
         {isAllSaved && (
@@ -961,6 +990,8 @@ function ExerciseLogAllAtOnce({ ex, exIdx, numSets, savedSets, suggestion, savin
         </div>
       )}
     </div>
+    {showInfo && <ExerciseInfoModal exerciseName={ex.name} onClose={() => setShowInfo(false)} />}
+    </>
   );
 }
 

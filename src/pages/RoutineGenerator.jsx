@@ -8,6 +8,8 @@ import {
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { C, FONTS, card, btnPrimary, inputBase, labelBase, tagBase } from '../theme';
+import ExerciseInfoModal from '../components/ExerciseInfoModal';
+import { Info } from 'lucide-react';
 
 const GOALS = [
   { value: 'strength',    label: 'Strength',    desc: '5 sets × 3-5 reps | Heavy loads' },
@@ -234,6 +236,7 @@ export default function RoutineGenerator() {
   const [timeLimit, setTimeLimit] = useState('no-limit');
   const [showWhyPanel, setShowWhyPanel] = useState(false);
   const [openRPE, setOpenRPE] = useState(null);
+  const [infoExercise, setInfoExercise] = useState(null);
 
   // Recovery state
   const [recoveryState, setRecoveryState] = useState(null);
@@ -478,6 +481,16 @@ export default function RoutineGenerator() {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+            {/* Info button */}
+            <button
+              onClick={() => setInfoExercise(ex.name)}
+              title="Exercise guide"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '6px', border: `1px solid ${C.border}`, backgroundColor: C.bg, color: C.textSecondary, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
+              onMouseOver={(e) => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.color = accent; e.currentTarget.style.backgroundColor = C.accentMuted; }}
+              onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.backgroundColor = C.bg; }}
+            >
+              <Info size={14} strokeWidth={1.75} />
+            </button>
             {/* RPE button */}
             {ex.targetRPE != null && (
               <button
@@ -701,6 +714,9 @@ export default function RoutineGenerator() {
           onSelect={handleSelectReplacement}
           onClose={() => setReplaceModal(null)}
         />
+      )}
+      {infoExercise && (
+        <ExerciseInfoModal exerciseName={infoExercise} onClose={() => setInfoExercise(null)} />
       )}
 
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: '2rem 1rem' }}>

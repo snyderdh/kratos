@@ -12,6 +12,7 @@ import Profile from './pages/Profile';
 import KratosSplit from './pages/KratosSplit';
 import MyWorkout from './pages/MyWorkout';
 import WorkoutLog from './pages/WorkoutLog';
+import ExerciseLibrary from './pages/ExerciseLibrary';
 import PublicRoutine from './pages/PublicRoutine';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
@@ -46,6 +47,7 @@ export default function App() {
                       <Route path="/kratos" element={<KratosSplit />} />
                       <Route path="/community" element={<Community />} />
                       <Route path="/log" element={<WorkoutLog />} />
+                      <Route path="/library" element={<ExerciseLibrary />} />
                       <Route path="/settings" element={<Profile />} />
                       {/* Legacy routes */}
                       <Route path="/workout" element={<MyWorkout />} />

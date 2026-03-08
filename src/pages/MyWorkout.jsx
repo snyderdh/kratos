@@ -5,7 +5,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, Info } from 'lucide-react';
+import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import { C, FONTS, card } from '../theme';
 import { useAuth } from '../context/AuthContext';
 import { useActiveWorkout } from '../context/ActiveWorkoutContext';
@@ -515,6 +516,7 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
   const [suggestion, setSuggestion] = useState(null);
   const [showSupersetPanel, setShowSupersetPanel] = useState(false);
   const [showSwapPanel, setShowSwapPanel] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -565,6 +567,13 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
             Swapped
           </span>
         )}
+        <button
+          onClick={() => setShowInfoModal(true)}
+          title="Exercise guide"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0 0.1rem', flexShrink: 0, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+        >
+          <Info size={14} strokeWidth={1.75} />
+        </button>
         {isKratosSplit && (
           <button
             onClick={() => setShowSwapPanel(true)}
@@ -677,6 +686,9 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
           onSwap={(newExData) => { onSwap(uid, newExData); setShowSwapPanel(false); }}
           onClose={() => setShowSwapPanel(false)}
         />
+      )}
+      {showInfoModal && (
+        <ExerciseInfoModal exerciseName={ex.name} onClose={() => setShowInfoModal(false)} />
       )}
     </div>
   );

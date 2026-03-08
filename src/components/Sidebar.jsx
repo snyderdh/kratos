@@ -2,7 +2,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  Home, Dumbbell, Users, Menu, X, Zap, ClipboardList, Settings,
+  Home, Dumbbell, Users, Menu, X, Zap, ClipboardList, Settings, BookOpen,
 } from 'lucide-react';
 import { C, FONTS } from '../theme';
 
@@ -57,6 +57,7 @@ function SidebarContent({ onClose }) {
       <nav style={{ flex: 1, padding: '0 0.625rem', overflowY: 'auto' }}>
         <NavItem to="/" label="Home" icon={Home} end onClick={onClose} />
         <NavItem to="/train" label="Train" icon={Dumbbell} onClick={onClose} />
+        <NavItem to="/library" label="Exercise Library" icon={BookOpen} onClick={onClose} />
 
         <NavItem to="/kratos" label="Kratos Split" icon={Zap} onClick={onClose} />
 

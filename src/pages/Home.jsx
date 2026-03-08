@@ -563,7 +563,7 @@ export default function Home() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
                   <div style={{ fontWeight: 400, color: C.text, fontSize: '0.9rem', marginBottom: '0.15rem', textTransform: 'capitalize' }}>
-                    {lastWorkout.dayType || 'Workout'} Day
+                    {cap(lastWorkout.dayType) || 'Workout'} Day
                   </div>
                   <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300 }}>
                     {new Date(lastWorkout.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}

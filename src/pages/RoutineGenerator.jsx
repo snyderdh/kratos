@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   generateAdvancedRoutine,
   getAlternativeExercises,
@@ -7,6 +7,7 @@ import {
 } from '../utils/routineGenerator';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
+import { useActiveWorkout } from '../context/ActiveWorkoutContext';
 import { C, FONTS, card, btnPrimary, inputBase, labelBase, tagBase } from '../theme';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import { Info } from 'lucide-react';
@@ -98,6 +99,7 @@ const RPE_DESCRIPTIONS = {
 };
 
 const accent = C.accent;
+const TERRA  = '#C2622A';
 
 const difficultyBadge = {
   beginner:     { bg: '#EDF2EE', text: '#4A7C59' },
@@ -222,8 +224,20 @@ function ReplaceModal({ exerciseName, alternatives, onSelect, onClose }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────
+const TIME_EX_IDS     = new Set([36, 114, 130, 163, 167, 169, 170]);
+const WEIGHTED_BW_IDS = new Set([10, 31, 93, 107, 108]);
+function getTrackingType(ex) {
+  if (!ex) return 'reps';
+  if (ex.id && TIME_EX_IDS.has(ex.id))     return 'time';
+  if (ex.id && WEIGHTED_BW_IDS.has(ex.id)) return 'weighted_bodyweight';
+  if (ex.equipment === 'bodyweight')         return 'bodyweight';
+  return 'reps';
+}
+
 export default function RoutineGenerator() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const { startWorkout } = useActiveWorkout();
   const { state: navState } = useLocation();
   const [goals, setGoals] = useState(navState?.goals ?? ['hypertrophy']);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
@@ -416,6 +430,30 @@ export default function RoutineGenerator() {
 
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
+  }
+
+  function handleStartWorkout() {
+    if (!routine) return;
+    const exItems = routine.exercises.map((ex) => ({
+      uid:           crypto.randomUUID(),
+      ex: {
+        id:           ex.id ?? null,
+        name:         ex.name,
+        muscleGroup:  ex.muscleGroup ?? '',
+        equipment:    ex.equipment ?? '',
+        trackingType: getTrackingType(ex),
+      },
+      targetSets:    ex.sets ?? 3,
+      logData:       { sets: [] },
+      activeSets:    0,
+      supersetGroup: ex.supersetLabel?.[0] ?? null,
+      supersetLabel: ex.supersetLabel?.[0] ?? null,
+    }));
+    const now = new Date();
+    const month = now.toLocaleString('default', { month: 'short' });
+    const title = `${routine.blendLabel} · ${month} ${now.getDate()}`;
+    startWorkout({ title, source: 'generated', activeExercises: exItems, cycleId: null, weekNumber: null, dayType: 'custom', weekIdx: null, dayIdx: null, sessionNum: null });
+    navigate('/active');
   }
 
   // ── Exercise Card ─────────────────────────────────────────────────────
@@ -1077,6 +1115,15 @@ export default function RoutineGenerator() {
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = accent)}
               >
                 Save Routine
+              </button>
+
+              <button
+                onClick={handleStartWorkout}
+                style={{ padding: '0.7rem 1.4rem', borderRadius: '8px', border: `1px solid ${TERRA}`, backgroundColor: TERRA, color: '#fff', fontWeight: 500, fontSize: '0.875rem', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#A8501F')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = TERRA)}
+              >
+                Start Workout →
               </button>
 
               {saveSuccess && (

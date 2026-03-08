@@ -1625,16 +1625,16 @@ export default function MyWorkout() {
     const tt = ex.trackingType;
     const base = {
       user_id:       user.id,
-      cycle_id:      activeWorkout?.cycleId ?? null,
-      week_number:   activeWorkout?.weekNumber ?? 0,
       day_type:      activeWorkout?.dayType ?? 'custom',
       exercise_name: ex.name,
       set_number:    setNumber,
       rpe_actual:    data.rpe !== '' && data.rpe != null ? parseFloat(data.rpe) : null,
       logged_at:     new Date().toISOString(),
-      // Only include optional columns when they have a real value — omitting null
-      // avoids 400 errors if the column hasn't been added to the table yet.
-      ...(supersetGroup ? { superset_group: supersetGroup } : {}),
+      // Only include optional columns when they have a real value — omitting null/0
+      // avoids FK-constraint 400 errors for non-cycle workouts.
+      ...(activeWorkout?.cycleId    ? { cycle_id:    activeWorkout.cycleId }    : {}),
+      ...(activeWorkout?.weekNumber ? { week_number: activeWorkout.weekNumber } : {}),
+      ...(supersetGroup             ? { superset_group: supersetGroup }         : {}),
     };
     if (tt === 'time')               return { ...base, duration_seconds: data.duration !== '' ? parseInt(data.duration, 10) : null };
     if (tt === 'bodyweight')         return { ...base, reps_completed: data.reps !== '' ? parseInt(data.reps, 10) : null, is_bodyweight: true };

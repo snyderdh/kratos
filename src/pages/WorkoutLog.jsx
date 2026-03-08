@@ -27,40 +27,59 @@ function getDayTypeLabel(dayType) {
   return labels[dayType] || (dayType ? dayType.charAt(0).toUpperCase() + dayType.slice(1) : 'Workout');
 }
 
-function groupLogsByDate(logs) {
-  const groups = {};
-  logs.forEach((log) => {
-    const date = log.logged_at?.split('T')[0];
-    if (!date) return;
-    if (!groups[date]) groups[date] = [];
-    groups[date].push(log);
-  });
+// Group logs into sessions using a 3-hour gap heuristic.
+// Logs arrive sorted descending; we reverse for chronological grouping.
+function groupLogsBySessions(logs) {
+  if (!logs.length) return [];
 
-  return Object.entries(groups)
-    .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([date, dateLogs]) => {
-      const exercises = [...new Set(dateLogs.map((l) => l.exercise_name))];
-      let totalVolume = 0;
-      dateLogs.forEach((l) => {
-        if (l.weight_lbs && l.reps_completed) {
-          totalVolume += parseFloat(l.weight_lbs) * parseInt(l.reps_completed, 10);
-        }
-      });
-      const rpeValues = dateLogs.filter((l) => l.rpe_actual).map((l) => parseFloat(l.rpe_actual));
-      const avgRPE = rpeValues.length > 0
-        ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1)
-        : null;
-      const dayType = dateLogs[0]?.day_type ?? 'custom';
-      const totalSets = dateLogs.length;
+  // Sort ascending by logged_at for gap detection
+  const sorted = [...logs].sort((a, b) => new Date(a.logged_at) - new Date(b.logged_at));
 
-      const byExercise = {};
-      dateLogs.forEach((l) => {
-        if (!byExercise[l.exercise_name]) byExercise[l.exercise_name] = [];
-        byExercise[l.exercise_name].push(l);
-      });
+  const sessions = [];
+  let current = [sorted[0]];
 
-      return { date, logs: dateLogs, exercises, totalVolume: Math.round(totalVolume), avgRPE, dayType, totalSets, byExercise };
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = new Date(sorted[i].logged_at) - new Date(sorted[i - 1].logged_at);
+    if (gap > 3 * 60 * 60 * 1000) {
+      sessions.push(current);
+      current = [];
+    }
+    current.push(sorted[i]);
+  }
+  sessions.push(current);
+
+  // Build session objects (most recent first)
+  return sessions.reverse().map((sessionLogs) => {
+    const date = sessionLogs[0]?.logged_at?.split('T')[0] ?? '';
+    const startTime = sessionLogs[0]?.logged_at ?? '';
+    const exercises = [...new Set(sessionLogs.map((l) => l.exercise_name))];
+
+    let totalVolume = 0;
+    sessionLogs.forEach((l) => {
+      if (l.weight_lbs && l.reps_completed) {
+        totalVolume += parseFloat(l.weight_lbs) * parseInt(l.reps_completed, 10);
+      }
     });
+
+    const rpeValues = sessionLogs.filter((l) => l.rpe_actual).map((l) => parseFloat(l.rpe_actual));
+    const avgRPE = rpeValues.length > 0
+      ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1)
+      : null;
+
+    const dayType = sessionLogs[0]?.day_type ?? 'custom';
+    const totalSets = sessionLogs.length;
+
+    // Source: any log with a cycle_id means it came from the Kratos split
+    const source = sessionLogs.some((l) => l.cycle_id) ? 'kratos' : 'custom';
+
+    const byExercise = {};
+    sessionLogs.forEach((l) => {
+      if (!byExercise[l.exercise_name]) byExercise[l.exercise_name] = [];
+      byExercise[l.exercise_name].push(l);
+    });
+
+    return { date, startTime, logs: sessionLogs, exercises, totalVolume: Math.round(totalVolume), avgRPE, dayType, source, totalSets, byExercise };
+  });
 }
 
 function formatDate(dateStr) {
@@ -93,10 +112,16 @@ function ChevronUpIcon({ size = 16, color = C.textSecondary }) {
   );
 }
 
+const SOURCE_STYLES = {
+  kratos: { bg: '#FFF4EE', text: TERRA,    border: '#C2622A44', label: 'Kratos Split' },
+  custom: { bg: '#F5F5F5', text: '#6B7280', border: '#9CA3AF44', label: 'Custom' },
+};
+
 function SessionCard({ session }) {
   const [expanded, setExpanded] = useState(false);
-  const typeStyle = getDayTypeStyle(session.dayType);
-  const typeLabel = getDayTypeLabel(session.dayType);
+  const typeStyle   = getDayTypeStyle(session.dayType);
+  const typeLabel   = getDayTypeLabel(session.dayType);
+  const sourceStyle = SOURCE_STYLES[session.source] ?? SOURCE_STYLES.custom;
 
   return (
     <div style={{ ...card, overflow: 'hidden', marginBottom: '0.875rem' }}>
@@ -113,7 +138,7 @@ function SessionCard({ session }) {
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Day type + date */}
+          {/* Day type + source + date */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
             <span style={{
               fontSize: '0.58rem', fontWeight: 600,
@@ -123,6 +148,15 @@ function SessionCard({ session }) {
               textTransform: 'uppercase', letterSpacing: '0.08em',
             }}>
               {typeLabel}
+            </span>
+            <span style={{
+              fontSize: '0.58rem', fontWeight: 500,
+              color: sourceStyle.text, backgroundColor: sourceStyle.bg,
+              border: `1px solid ${sourceStyle.border}`,
+              borderRadius: '999px', padding: '0.15rem 0.625rem',
+              letterSpacing: '0.04em',
+            }}>
+              {sourceStyle.label}
             </span>
             <span style={{ fontSize: '0.825rem', fontWeight: 400, color: C.text }}>
               {formatDate(session.date)}
@@ -186,12 +220,12 @@ export default function WorkoutLog() {
     if (!user) { setLoading(false); return; }
     supabase
       .from('workout_logs')
-      .select('logged_at, day_type, exercise_name, set_number, weight_lbs, reps_completed, duration_seconds, rpe_actual')
+      .select('logged_at, day_type, cycle_id, exercise_name, set_number, weight_lbs, reps_completed, duration_seconds, rpe_actual')
       .eq('user_id', user.id)
       .order('logged_at', { ascending: false })
       .limit(1000)
       .then(({ data }) => {
-        setSessions(groupLogsByDate(data ?? []));
+        setSessions(groupLogsBySessions(data ?? []));
         setLoading(false);
       });
   }, [user]);
@@ -224,7 +258,7 @@ export default function WorkoutLog() {
             {sessions.length} session{sessions.length !== 1 ? 's' : ''} logged
           </div>
           {sessions.map((session) => (
-            <SessionCard key={session.date} session={session} />
+            <SessionCard key={session.startTime} session={session} />
           ))}
         </>
       )}

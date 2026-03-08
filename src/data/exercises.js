@@ -3200,6 +3200,43 @@ export const exercises = [
     secondaryMuscles: ['core'], tier: 3, movementPattern: 'carry', explosive: true,
     isBodyweight: true, isWeightedBodyweight: false, trackingType: 'cardio_time_reps',
   },
+  // SMITH MACHINE
+  {
+    id: 216, name: 'Incline Smith Machine Press', muscleGroup: 'chest', equipment: 'Smith Machine',
+    difficulty: 'intermediate', description: 'Incline press on a Smith Machine targeting the upper chest.',
+    primaryMuscles: ['chest'], secondaryMuscles: ['triceps', 'shoulders'], tier: 2, movementPattern: 'push',
+    explosive: false, isBodyweight: false, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 217, name: 'Decline Smith Machine Press', muscleGroup: 'chest', equipment: 'Smith Machine',
+    difficulty: 'intermediate', description: 'Decline press on a Smith Machine targeting the lower chest.',
+    primaryMuscles: ['chest'], secondaryMuscles: ['triceps'], tier: 2, movementPattern: 'push',
+    explosive: false, isBodyweight: false, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 218, name: 'Smith Machine Military Press', muscleGroup: 'shoulders', equipment: 'Smith Machine',
+    difficulty: 'intermediate', description: 'Overhead press on a Smith Machine for shoulder development.',
+    primaryMuscles: ['shoulders'], secondaryMuscles: ['triceps'], tier: 2, movementPattern: 'push',
+    explosive: false, isBodyweight: false, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 219, name: 'Smith Machine Squat', muscleGroup: 'legs', equipment: 'Smith Machine',
+    difficulty: 'beginner', description: 'Squat with a Smith Machine for guided quad and glute development.',
+    primaryMuscles: ['quads', 'glutes'], secondaryMuscles: ['hamstrings'], tier: 2, movementPattern: 'squat',
+    explosive: false, isBodyweight: false, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 220, name: 'Smith Machine Reverse Lunge', muscleGroup: 'legs', equipment: 'Smith Machine',
+    difficulty: 'intermediate', description: 'Reverse lunge on a Smith Machine targeting quads, glutes, and hamstrings.',
+    primaryMuscles: ['quads', 'glutes', 'hamstrings'], secondaryMuscles: ['calves'], tier: 2, movementPattern: 'squat',
+    explosive: false, isBodyweight: false, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 221, name: 'Smith Machine Bulgarian Split Squat', muscleGroup: 'legs', equipment: 'Smith Machine',
+    difficulty: 'advanced', description: 'Bulgarian split squat on a Smith Machine for unilateral quad and glute strength.',
+    primaryMuscles: ['quads', 'glutes'], secondaryMuscles: ['hamstrings'], tier: 2, movementPattern: 'squat',
+    explosive: false, isBodyweight: false, isWeightedBodyweight: false, trackingType: 'reps',
+  },
 ];
 
 export const muscleGroups = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];

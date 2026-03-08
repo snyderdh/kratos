@@ -5,14 +5,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeftRight } from 'lucide-react';
 import { C, FONTS, card } from '../theme';
 import { useAuth } from '../context/AuthContext';
 import { useActiveWorkout } from '../context/ActiveWorkoutContext';
 import { supabase } from '../supabase';
 import { exercises as ALL_EXERCISES } from '../data/exercises';
 import RoutineGenerator from './RoutineGenerator';
+import KratosSplitViewer from '../components/KratosSplitViewer';
 
 const TERRA = '#C2622A';
+const SAGE  = '#6B8F71';
 
 // ── Tracking type helpers ──────────────────────────────────────────────
 const TIME_EX_IDS     = new Set([36, 114, 130, 163, 167, 169, 170]);
@@ -50,6 +53,14 @@ function getDefaultTitle() {
 }
 
 const MUSCLE_GROUPS = ['All', 'chest', 'back', 'shoulders', 'arms', 'legs', 'core', 'cardio'];
+
+// Day type → eligible muscle groups for exercise swaps
+const SWAP_MUSCLE_GROUPS = {
+  push:    ['chest', 'shoulders', 'arms'],
+  pull:    ['back', 'arms', 'shoulders'],
+  legs:    ['legs'],
+  recover: ['cardio'],
+};
 
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
@@ -470,13 +481,14 @@ function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSave
 }
 
 // ── ActiveExerciseCard ─────────────────────────────────────────────────
-function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, savingUid }) {
+function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, savingUid, onSwap, dayType, isKratosSplit }) {
   const { uid, ex, targetSets, logData, activeSets } = item;
   const tt        = getTrackingType(ex);
   const savedSets = logData.sets ?? [];
   const [logStyle, setLogStyle] = useState('one_at_a_time');
   const [suggestion, setSuggestion] = useState(null);
   const [showSupersetPanel, setShowSupersetPanel] = useState(false);
+  const [showSwapPanel, setShowSwapPanel] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -521,6 +533,20 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
           <span style={{ fontSize: '0.58rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#F5EDE6', color: TERRA, fontWeight: 400, textTransform: 'capitalize', flexShrink: 0 }}>
             {ex.muscleGroup}
           </span>
+        )}
+        {item.swapped && (
+          <span style={{ fontSize: '0.54rem', padding: '0.08rem 0.4rem', borderRadius: '999px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontWeight: 500, flexShrink: 0 }}>
+            Swapped
+          </span>
+        )}
+        {isKratosSplit && (
+          <button
+            onClick={() => setShowSwapPanel(true)}
+            title="Swap exercise"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0 0.1rem', flexShrink: 0, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+          >
+            <ArrowLeftRight size={14} strokeWidth={1.75} />
+          </button>
         )}
         <button
           onClick={() => onRemove(uid)}
@@ -616,6 +642,14 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
           onAdd={(exData) => { onCreateSuperset(item.uid, exData); setShowSupersetPanel(false); }}
           onClose={() => setShowSupersetPanel(false)}
           panelTitle="Add Superset Partner"
+        />
+      )}
+      {showSwapPanel && (
+        <SwapExercisePanel
+          dayType={dayType}
+          excludeName={ex.name}
+          onSwap={(newExData) => { onSwap(uid, newExData); setShowSwapPanel(false); }}
+          onClose={() => setShowSwapPanel(false)}
         />
       )}
     </div>
@@ -803,6 +837,110 @@ function AddExercisePanel({ onAdd, onClose, panelTitle = 'Add Exercise' }) {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── SwapExercisePanel ──────────────────────────────────────────────────
+function SwapExercisePanel({ dayType, excludeName, onSwap, onClose }) {
+  const [search, setSearch] = useState('');
+  const searchRef = useRef(null);
+  const isMobile  = window.innerWidth <= 768;
+
+  useEffect(() => {
+    searchRef.current?.focus();
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const allowedGroups = SWAP_MUSCLE_GROUPS[dayType] ?? [];
+
+  const filtered = ALL_EXERCISES.filter((ex) => {
+    if (ex.name === excludeName) return false;
+    if (allowedGroups.length && !allowedGroups.includes(ex.muscleGroup)) return false;
+    const q = search.toLowerCase();
+    return !q || ex.name.toLowerCase().includes(q) || ex.muscleGroup.toLowerCase().includes(q);
+  });
+
+  const panelStyle = isMobile
+    ? { bottom: 0, left: 0, right: 0, borderRadius: '16px 16px 0 0', maxHeight: '75vh' }
+    : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '520px', maxWidth: '90vw', maxHeight: '80vh', borderRadius: '12px' };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 300 }} />
+      <div style={{
+        position: 'fixed', zIndex: 301,
+        backgroundColor: C.surface,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
+        ...panelStyle,
+      }}>
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '0.5rem', flexShrink: 0 }}>
+            <div style={{ width: '36px', height: '4px', borderRadius: '2px', backgroundColor: C.border }} />
+          </div>
+        )}
+
+        {/* Header */}
+        <div style={{ padding: '0.875rem 1.125rem 0.625rem', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+            <span style={{ fontWeight: 500, color: C.text, fontSize: '1rem' }}>Swap Exercise</span>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: C.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+          {allowedGroups.length > 0 && (
+            <div style={{ fontSize: '0.68rem', color: C.textSecondary, fontWeight: 300, marginBottom: '0.625rem', textTransform: 'capitalize' }}>
+              {cap(dayType)} day · {allowedGroups.join(', ')}
+            </div>
+          )}
+          <input
+            ref={searchRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search exercises…"
+            style={{
+              width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px',
+              border: `1.5px solid ${C.border}`, backgroundColor: C.bg,
+              color: C.text, fontSize: '0.875rem', fontFamily: FONTS.body,
+              boxSizing: 'border-box', outline: 'none',
+            }}
+          />
+        </div>
+
+        {/* Scrollable list */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {filtered.map((ex) => (
+            <button
+              key={ex.id}
+              onClick={() => {
+                onSwap({ id: ex.id, name: ex.name, muscleGroup: ex.muscleGroup, equipment: ex.equipment, trackingType: getTrackingType(ex) });
+                onClose();
+              }}
+              style={{
+                width: '100%', padding: '0.6rem 1.125rem',
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                border: 'none', borderBottom: `1px solid ${C.border}`,
+                backgroundColor: 'transparent', cursor: 'pointer',
+                textAlign: 'left', transition: 'background-color 0.1s',
+                fontFamily: FONTS.body,
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.backgroundColor = C.bg; }}
+              onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <span style={{ flex: 1, fontSize: '0.875rem', color: C.text, fontWeight: 300 }}>{ex.name}</span>
+              <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: C.bg, color: C.textSecondary, border: `1px solid ${C.border}`, textTransform: 'capitalize', flexShrink: 0 }}>{ex.equipment}</span>
+              <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#F5EDE6', color: TERRA, textTransform: 'capitalize', flexShrink: 0 }}>{ex.muscleGroup}</span>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '1.5rem', color: C.textSecondary, fontSize: '0.82rem', fontWeight: 300 }}>
+              No exercises found
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -1128,6 +1266,9 @@ function ActiveCycleSection({ onStartKratosSession }) {
   const navigate = useNavigate();
   const [cycle, setCycle] = useState(null);
   const [loadingCycle, setLoadingCycle] = useState(true);
+  const [showFullBlock, setShowFullBlock] = useState(false);
+  const [recoverSheetDay, setRecoverSheetDay] = useState(null);
+  const [markingComplete, setMarkingComplete] = useState(false);
 
   useEffect(() => {
     if (!user) { setLoadingCycle(false); return; }
@@ -1143,7 +1284,12 @@ function ActiveCycleSection({ onStartKratosSession }) {
 
   if (loadingCycle) return null;
 
-  const editLabel = {
+  const sectionLabel = {
+    fontSize: '0.62rem', fontWeight: 700, color: C.textSecondary,
+    textTransform: 'uppercase', letterSpacing: '0.08em',
+    marginBottom: '0.5rem', fontFamily: FONTS.body,
+  };
+  const cycleLabel = {
     fontSize: '0.58rem', fontWeight: 700, color: TERRA,
     textTransform: 'uppercase', letterSpacing: '0.1em',
     marginBottom: '0.5rem', fontFamily: FONTS.body,
@@ -1152,7 +1298,7 @@ function ActiveCycleSection({ onStartKratosSession }) {
   if (!cycle) {
     return (
       <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1.5rem', borderLeft: `3px solid ${C.border}` }}>
-        <div style={editLabel}>Current Cycle</div>
+        <div style={cycleLabel}>Current Cycle</div>
         <div style={{ fontSize: '0.875rem', color: C.text, fontWeight: 400, marginBottom: '0.625rem' }}>No active Kratos Split cycle</div>
         <button
           onClick={() => navigate('/kratos')}
@@ -1168,86 +1314,365 @@ function ActiveCycleSection({ onStartKratosSession }) {
   const completedSet = new Set(cycle.completed_sessions ?? []);
   const nextSession = sessions.find(s => !completedSet.has(s.sessionNum)) ?? null;
 
-  if (!nextSession) {
+  // Session-based current week: the week containing the next incomplete session
+  const currentWeekIdx = nextSession?.weekIdx ?? -1;
+
+  // Sessions for current week and the week after
+  const thisWeekSessions = currentWeekIdx >= 0
+    ? sessions.filter(s => s.weekIdx === currentWeekIdx)
+    : [];
+  const nextWeekSessions = currentWeekIdx >= 0
+    ? sessions.filter(s => s.weekIdx === currentWeekIdx + 1)
+    : [];
+
+  function startSession(session) {
+    const d = session.day;
+    if (!['push', 'pull', 'legs'].includes(d.type)) return;
+    const exItems = (d.exercises ?? []).map(ex => ({
+      uid: crypto.randomUUID(),
+      ex: { id: ex.id ?? null, name: ex.name, muscleGroup: ex.muscleGroup ?? '', equipment: ex.equipment ?? '', trackingType: getTrackingType(ex) },
+      targetSets: ex.sets ?? 3, logData: { sets: [] }, activeSets: 0,
+      supersetGroup: null, supersetLabel: null,
+    }));
+    onStartKratosSession({
+      title: `Week ${session.weekNum} · ${cap(d.type)} Day`,
+      source: 'kratos_split', activeExercises: exItems,
+      cycleId: cycle.id, weekNumber: session.weekNum,
+      dayType: d.type, weekIdx: session.weekIdx,
+      dayIdx: session.dayIdx, sessionNum: session.sessionNum,
+    });
+  }
+
+  async function handleMarkComplete(sessionNum) {
+    if (markingComplete) return;
+    setMarkingComplete(true);
+    const prev = new Set(cycle.completed_sessions ?? []);
+    prev.add(sessionNum);
+    const arr = [...prev];
+    await supabase.from('cycles').update({ completed_sessions: arr }).eq('id', cycle.id);
+    setCycle(c => ({ ...c, completed_sessions: arr }));
+    setRecoverSheetDay(null);
+    setMarkingComplete(false);
+  }
+
+  // Render a single session row
+  function renderSessionRow(session) {
+    const isCompleted = completedSet.has(session.sessionNum);
+    const isNext    = nextSession?.sessionNum === session.sessionNum;
+    const isLift    = ['push', 'pull', 'legs'].includes(session.day.type);
+    const isRecover = session.day.type === 'recover';
+    const exCount   = (session.day.exercises ?? []).length;
+    const dotColor  = isRecover ? SAGE : TERRA;
+
     return (
-      <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1.5rem', borderLeft: `3px solid #16a34a` }}>
-        <div style={{ ...editLabel, color: '#16a34a' }}>Current Cycle</div>
-        <div style={{ fontSize: '0.875rem', color: C.text, fontWeight: 400 }}>Kratos Split complete! All {sessions.length} sessions done.</div>
+      <div
+        key={session.sessionNum}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.625rem',
+          padding: '0.525rem 0',
+          borderBottom: `1px solid ${C.border}`,
+          opacity: isCompleted ? 0.45 : 1,
+        }}
+      >
+        {/* Status circle */}
+        <div style={{
+          width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+          border: `1.5px solid ${isCompleted ? '#16a34a' : isNext ? dotColor : C.border}`,
+          backgroundColor: isCompleted ? '#16a34a' : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {isCompleted && <span style={{ color: '#fff', fontSize: '0.55rem', fontWeight: 700, lineHeight: 1 }}>✓</span>}
+          {isNext && !isCompleted && <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: dotColor }} />}
+        </div>
+
+        {/* Day label + sub-info */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: isNext ? 400 : 300, color: isNext ? C.text : C.textSecondary }}>
+            {cap(session.day.type)} Day
+          </span>
+          {isLift && exCount > 0 && (
+            <span style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, marginLeft: '0.35rem' }}>
+              · {exCount} ex
+            </span>
+          )}
+          {isRecover && session.day.cardioBlock?.durationMin && (
+            <span style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, marginLeft: '0.35rem' }}>
+              · {session.day.cardioBlock.durationMin} min
+            </span>
+          )}
+        </div>
+
+        {/* Session number */}
+        <span style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300, flexShrink: 0 }}>
+          #{session.sessionNum}
+        </span>
+
+        {/* Action buttons for the next upcoming session */}
+        {isNext && isLift && (
+          <button
+            onClick={() => startSession(session)}
+            style={{
+              padding: '0.28rem 0.7rem', borderRadius: '6px', border: 'none',
+              backgroundColor: TERRA, color: '#fff',
+              fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer',
+              fontFamily: FONTS.body, flexShrink: 0,
+            }}
+          >
+            Start →
+          </button>
+        )}
+        {isNext && isRecover && !isCompleted && (
+          <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
+            <button
+              onClick={() => setRecoverSheetDay(session.day)}
+              style={{
+                padding: '0.28rem 0.6rem', borderRadius: '6px',
+                border: `1px solid ${SAGE}`, backgroundColor: 'transparent', color: SAGE,
+                fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: FONTS.body,
+              }}
+            >
+              View →
+            </button>
+            <button
+              onClick={() => handleMarkComplete(session.sessionNum)}
+              disabled={markingComplete}
+              style={{
+                padding: '0.28rem 0.6rem', borderRadius: '6px',
+                border: '1px solid #16a34a', backgroundColor: 'transparent', color: '#16a34a',
+                fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: FONTS.body,
+                opacity: markingComplete ? 0.6 : 1,
+              }}
+            >
+              {markingComplete ? '…' : '✓'}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
-  const day = nextSession.day;
-  const exCount = (day.exercises ?? []).length;
-  const est = day.estimatedMin > 0 ? `~${day.estimatedMin} min` : '';
-  const isLiftDay = ['push', 'pull', 'legs'].includes(day.type);
-
-  function handleBeginSession() {
-    if (!isLiftDay) return;
-    const exItems = (day.exercises ?? []).map(ex => ({
-      uid: crypto.randomUUID(),
-      ex: {
-        id: ex.id ?? null,
-        name: ex.name,
-        muscleGroup: ex.muscleGroup ?? '',
-        equipment: ex.equipment ?? '',
-        trackingType: getTrackingType(ex),
-      },
-      targetSets: ex.sets ?? 3,
-      logData: { sets: [] },
-      activeSets: 0,
-      supersetGroup: null,
-      supersetLabel: null,
-    }));
-    onStartKratosSession({
-      title: `Week ${nextSession.weekNum} · ${cap(day.type)} Day`,
-      source: 'kratos_split',
-      activeExercises: exItems,
-      cycleId: cycle.id,
-      weekNumber: nextSession.weekNum,
-      dayType: day.type,
-      weekIdx: nextSession.weekIdx,
-      dayIdx: nextSession.dayIdx,
-      sessionNum: nextSession.sessionNum,
-    });
+  if (!nextSession) {
+    return (
+      <div>
+        <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1rem', borderLeft: `3px solid #16a34a` }}>
+          <div style={{ ...cycleLabel, color: '#16a34a' }}>Current Cycle</div>
+          <div style={{ fontSize: '0.875rem', color: C.text, fontWeight: 400 }}>Kratos Split complete! All {sessions.length} sessions done.</div>
+        </div>
+        <button
+          onClick={() => setShowFullBlock(true)}
+          style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300, cursor: 'pointer', fontFamily: FONTS.body }}
+        >
+          View Full 12-Week Block →
+        </button>
+        {showFullBlock && <FullBlockOverlay cycle={cycle} onClose={() => setShowFullBlock(false)} />}
+      </div>
+    );
   }
 
   return (
-    <div style={{ ...card, padding: '1.125rem 1.25rem', marginBottom: '1.5rem', borderLeft: `3px solid ${TERRA}` }}>
-      <div style={editLabel}>Current Cycle</div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 500, color: C.text, marginBottom: '0.2rem' }}>
-            Kratos Split — Session {nextSession.sessionNum} of {sessions.length}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: C.textSecondary, fontWeight: 300 }}>
-            Week {nextSession.weekNum} · {cap(day.type)} Day{exCount > 0 ? ` · ${exCount} exercises` : ''}{est ? ` · ${est}` : ''}
+    <div>
+      {/* Next session summary card */}
+      <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1.25rem', borderLeft: `3px solid ${TERRA}` }}>
+        <div style={cycleLabel}>Current Cycle</div>
+        <div style={{ fontSize: '0.875rem', fontWeight: 500, color: C.text, marginBottom: '0.15rem' }}>
+          Kratos Split — Session {nextSession.sessionNum} of {sessions.length}
+        </div>
+        <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300 }}>
+          Week {nextSession.weekNum} · {cap(nextSession.day.type)} Day
+          {(nextSession.day.exercises ?? []).length > 0 ? ` · ${(nextSession.day.exercises ?? []).length} exercises` : ''}
+        </div>
+      </div>
+
+      {/* This Week */}
+      {thisWeekSessions.length > 0 && (
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={sectionLabel}>Current Week — Week {currentWeekIdx + 1}</div>
+          <div style={{ ...card, padding: '0 1rem' }}>
+            {thisWeekSessions.map(s => renderSessionRow(s))}
           </div>
         </div>
-        {isLiftDay && (
-          <button
-            onClick={handleBeginSession}
-            style={{
-              padding: '0.55rem 1rem', borderRadius: '8px', border: 'none',
-              backgroundColor: TERRA, color: '#fff',
-              fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer',
-              fontFamily: FONTS.body, flexShrink: 0, whiteSpace: 'nowrap',
-            }}
-          >
-            Begin Today's Session →
-          </button>
+      )}
+
+      {/* Next Week */}
+      {nextWeekSessions.length > 0 && (
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={sectionLabel}>Next Week — Week {currentWeekIdx + 2}</div>
+
+          <div style={{ ...card, padding: '0 1rem' }}>
+            {nextWeekSessions.map(s => renderSessionRow(s))}
+          </div>
+        </div>
+      )}
+
+      {/* View Full Block button */}
+      <button
+        onClick={() => setShowFullBlock(true)}
+        style={{
+          width: '100%', padding: '0.65rem', borderRadius: '8px',
+          border: `1px solid ${C.border}`, backgroundColor: 'transparent',
+          color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300,
+          cursor: 'pointer', fontFamily: FONTS.body, transition: 'all 0.15s',
+        }}
+        onMouseOver={(e) => { e.currentTarget.style.borderColor = TERRA; e.currentTarget.style.color = TERRA; }}
+        onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; }}
+      >
+        View Full 12-Week Block →
+      </button>
+
+      {showFullBlock && <FullBlockOverlay cycle={cycle} onClose={() => setShowFullBlock(false)} />}
+      {recoverSheetDay && (
+        <RecoverySheet
+          day={recoverSheetDay}
+          onMarkComplete={() => handleMarkComplete(nextSession?.sessionNum)}
+          onClose={() => setRecoverSheetDay(null)}
+          marking={markingComplete}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── RecoverySheet — inline overlay for recover day routine ──────────────
+function RecoverySheet({ day, onMarkComplete, onClose, marking }) {
+  const cb = day.cardioBlock ?? {};
+  const stretches = day.stretches ?? [];
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 500, display: 'flex', alignItems: 'flex-end' }}>
+      <div
+        style={{
+          width: '100%', maxWidth: '640px', margin: '0 auto',
+          backgroundColor: C.bg, borderRadius: '16px 16px 0 0',
+          maxHeight: '82vh', overflowY: 'auto',
+          padding: '1.25rem 1.25rem 2.5rem',
+          boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <div>
+            <div style={{ fontSize: '0.58rem', fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: FONTS.body, marginBottom: '0.2rem' }}>
+              Recovery Day
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 400, color: C.text, textTransform: 'capitalize' }}>
+              {cb.modality ?? 'Active Recovery'}{cb.durationMin ? ` · ${cb.durationMin} min` : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '1.5rem', lineHeight: 1, padding: '0.25rem' }}>×</button>
+        </div>
+
+        {/* Cardio block */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: '0.62rem', fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: '0.625rem', fontFamily: FONTS.body }}>
+            Cardio Block
+          </div>
+          <div style={{ padding: '0.875rem 1rem', backgroundColor: '#EEF4EF', border: `1px solid ${SAGE}35`, borderRadius: '10px', borderLeft: `3px solid ${SAGE}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.375rem' }}>
+              <span style={{ fontWeight: 400, color: C.text, fontSize: '0.95rem', textTransform: 'capitalize' }}>{cb.modality ?? 'Cardio'}</span>
+              <span style={{ fontWeight: 500, color: SAGE, fontSize: '0.95rem', fontFamily: FONTS.heading }}>{cb.durationMin ?? 30} min</span>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.55, marginBottom: '0.625rem' }}>
+              {cb.intensity ?? 'Zone 2 — conversational pace, 60–70% max HR'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {[['Target Zone', 'Zone 2'], ['Max HR', '60–70%'], ['Effort', 'Conversational']].map(([label, val]) => (
+                <div key={label} style={{ padding: '0.25rem 0.625rem', backgroundColor: '#fff', borderRadius: '6px', border: `1px solid ${SAGE}25` }}>
+                  <div style={{ fontSize: '0.54rem', color: SAGE, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
+                  <div style={{ fontSize: '0.72rem', color: C.text, fontWeight: 400 }}>{val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobility sequence */}
+        {stretches.length > 0 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.62rem', fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: '0.625rem', fontFamily: FONTS.body }}>
+              Mobility Sequence
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              {stretches.map((s, i) => (
+                <div key={i} style={{ padding: '0.625rem 0.875rem', backgroundColor: C.surface, borderRadius: '8px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-start', gap: '0.625rem' }}>
+                  <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#EEF4EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 600, color: SAGE, flexShrink: 0 }}>{i + 1}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.1rem' }}>
+                      <span style={{ fontWeight: 400, color: C.text, fontSize: '0.85rem' }}>{s.name}</span>
+                      <span style={{ fontSize: '0.7rem', color: SAGE, fontWeight: 400, flexShrink: 0 }}>{s.duration}</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300, fontStyle: 'italic' }}>{s.cue}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
+
+        {/* Mark complete */}
+        <button
+          onClick={onMarkComplete}
+          disabled={marking}
+          style={{
+            width: '100%', padding: '0.875rem', borderRadius: '10px',
+            border: '1.5px solid #16a34a', backgroundColor: 'transparent',
+            color: '#16a34a', fontSize: '0.925rem', fontWeight: 500,
+            cursor: marking ? 'default' : 'pointer', fontFamily: FONTS.body,
+            opacity: marking ? 0.6 : 1, transition: 'opacity 0.15s',
+          }}
+        >
+          {marking ? 'Marking…' : '✓ Mark Recovery Complete'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Full-screen overlay wrapping KratosSplitViewer
+function FullBlockOverlay({ cycle, onClose }) {
+  // Close on Escape key
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: C.bg, zIndex: 400, overflowY: 'auto' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '1.25rem 1rem 4rem' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: '0.62rem', fontWeight: 700, color: TERRA, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: FONTS.body }}>
+            Kratos Split — Full 12-Week Block
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '1.5rem', lineHeight: 1, padding: '0.25rem 0.5rem', fontFamily: FONTS.body }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <KratosSplitViewer cycle={cycle} />
       </div>
     </div>
   );
 }
 
 // ── HomeView ───────────────────────────────────────────────────────────
-function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession, onRemove, onAddExercise, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid }) {
+function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession, onRemove, onAddExercise, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid, onSwap }) {
   const { activeWorkout, isActive, updateTitle } = useActiveWorkout();
   const activeExercises = activeWorkout?.activeExercises ?? [];
   const workoutTitle    = activeWorkout?.title ?? '';
   const startTime       = activeWorkout?.startTime ?? null;
+  const dayType         = activeWorkout?.dayType ?? null;
+  const isKratosSplit   = activeWorkout?.source === 'kratos_split';
 
   const [tab, setTab] = useState(() => isActive ? 'workout' : 'cycle');
   const [builderExercises, setBuilderExercises] = useState([]);
@@ -1355,6 +1780,9 @@ function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession,
           onFinish={onFinish}
           savingUid={savingUid}
           onAddExercise={onAddExercise}
+          onSwap={onSwap}
+          dayType={dayType}
+          isKratosSplit={isKratosSplit}
         />
       )}
 
@@ -1467,7 +1895,7 @@ function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession,
 }
 
 // ── ActiveWorkoutView ──────────────────────────────────────────────────
-function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, startTime, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid, onAddExercise }) {
+function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, startTime, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid, onAddExercise, onSwap, dayType, isKratosSplit }) {
   const [showPanel, setShowPanel] = useState(false);
 
   const groups = groupItems(activeExercises);
@@ -1500,6 +1928,9 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
                   onDeleteSet={onDeleteSet}
                   onCreateSuperset={onCreateSuperset}
                   savingUid={savingUid}
+                  onSwap={onSwap}
+                  dayType={dayType}
+                  isKratosSplit={isKratosSplit}
                 />
               );
             }
@@ -1521,6 +1952,9 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
                     onDeleteSet={onDeleteSet}
                     onCreateSuperset={onCreateSuperset}
                     savingUid={savingUid}
+                    onSwap={onSwap}
+                    dayType={dayType}
+                    isKratosSplit={isKratosSplit}
                   />
                 ))}
               </div>
@@ -1707,6 +2141,18 @@ export default function MyWorkout() {
     updateActiveExercises([...result]);
   }
 
+  function handleSwapExercise(uid, newExData) {
+    updateActiveExercises(activeExercises.map(item =>
+      item.uid !== uid ? item : {
+        ...item,
+        ex: { ...newExData },
+        logData: { sets: [] },
+        activeSets: 0,
+        swapped: true,
+      }
+    ));
+  }
+
   function buildPayload(ex, setNumber, data, supersetGroup = null) {
     const tt = ex.trackingType;
     const base = {
@@ -1837,6 +2283,7 @@ export default function MyWorkout() {
         onCreateSuperset={handleCreateSuperset}
         onFinish={() => setShowFinish(true)}
         savingUid={savingUid}
+        onSwap={handleSwapExercise}
       />
       {isActive && showFinish && (
         <FinishModal

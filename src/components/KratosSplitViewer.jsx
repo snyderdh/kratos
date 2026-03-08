@@ -65,7 +65,7 @@ function formatPrescription(ex) {
   return `${sets} × ${reps}`;
 }
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYHEADERS = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
 
 const REST_TIPS = [
   'Sleep 7–9 hours. Growth hormone peaks during deep sleep — not during training.',
@@ -144,7 +144,9 @@ function ProgressBar({ cycle, completedDays }) {
 }
 
 // ── Calendar grid ──────────────────────────────────────────────────────
-function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileWeek, isMobile, currentWeekIdx, isInRange, weekRowRefs, onJumpToToday }) {
+function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileWeek, isMobile, currentWeekIdx, nextSession, weekRowRefs, onJumpToNext }) {
+  // A week is "current" when it contains the next incomplete session
+  const isInRange = currentWeekIdx >= 0 && currentWeekIdx < cycle.weeks.length;
   const weeksToRender = isMobile
     ? [{ week: cycle.weeks[mobileWeek], weekIdx: mobileWeek }]
     : cycle.weeks.map((w, i) => ({ week: w, weekIdx: i }));
@@ -179,19 +181,19 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
 
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: isMobile ? 'unset' : '620px' }}>
-          {/* Day header row + Jump to Today button */}
+          {/* Day header row + Jump to Next button */}
           <div style={{ display: 'grid', gridTemplateColumns: '68px repeat(7, 1fr)', gap: '3px', marginBottom: '4px', alignItems: 'center' }}>
-            {/* Jump to Today in the label column */}
+            {/* Jump to Next in the label column */}
             {isInRange && !isMobile ? (
               <button
-                onClick={onJumpToToday}
-                title="Jump to current week"
+                onClick={onJumpToNext}
+                title="Jump to next session"
                 style={{ padding: '0.2rem 0.3rem', borderRadius: '6px', border: `1px solid ${TERRA}`, backgroundColor: 'transparent', color: TERRA, fontSize: '0.52rem', fontWeight: 500, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: FONTS.body, lineHeight: 1.3, textAlign: 'center' }}
               >
-                ↓ Today
+                ↓ Next
               </button>
             ) : <div />}
-            {WEEKDAYS.map((d) => (
+            {DAYHEADERS.map((d) => (
               <div key={d} style={{ textAlign: 'center', fontSize: '0.62rem', fontWeight: 400, color: C.textSecondary, padding: '2px 0' }}>{d}</div>
             ))}
           </div>
@@ -269,12 +271,21 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
 
                 {/* Day cells */}
                 {week.days.map((day, dayIdx) => {
-                  const dKey      = `${weekIdx}:${dayIdx}`;
+                  const dKey        = `${weekIdx}:${dayIdx}`;
                   const isCompleted = !!completedDays[dKey];
-                  const meta      = DAY_META[day.type] ?? DAY_META.rest;
-                  const isRest    = day.type === 'rest';
-                  const isRecover = day.type === 'recover';
-                  const isLift    = ['push', 'pull', 'legs'].includes(day.type);
+                  const isNextSess  = nextSession?.weekIdx === weekIdx && nextSession?.dayIdx === dayIdx;
+                  const meta        = DAY_META[day.type] ?? DAY_META.rest;
+                  const isRest      = day.type === 'rest';
+                  const isRecover   = day.type === 'recover';
+                  const isLift      = ['push', 'pull', 'legs'].includes(day.type);
+
+                  const cellBorder = isRest
+                    ? C.border
+                    : isCompleted
+                      ? '#86efac'
+                      : isNextSess
+                        ? TERRA
+                        : meta.color + '38';
 
                   return (
                     <button
@@ -285,7 +296,7 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
                         position: 'relative',
                         padding: '5px 2px 4px',
                         borderRadius: '6px',
-                        border: `1.5px solid ${isRest ? C.border : (isCompleted ? '#86efac' : meta.color + '38')}`,
+                        border: `1.5px solid ${cellBorder}`,
                         backgroundColor: isCompleted ? '#f0fdf4' : (isRest ? C.bg : meta.bg),
                         cursor: 'pointer',
                         textAlign: 'center',
@@ -297,10 +308,10 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
                         justifyContent: 'center',
                         gap: '2px',
                         overflow: 'hidden',
-                        boxShadow: isCurrentWeek ? '0 2px 8px rgba(194,98,42,0.14)' : 'none',
+                        boxShadow: isNextSess ? `0 0 0 2px ${TERRA}30` : (isCurrentWeek ? '0 2px 8px rgba(194,98,42,0.14)' : 'none'),
                       }}
                       onMouseOver={(e) => { e.currentTarget.style.borderColor = isRest ? C.accent + '50' : meta.color; }}
-                      onMouseOut={(e) => { e.currentTarget.style.borderColor = isRest ? C.border : (isCompleted ? '#86efac' : meta.color + '38'); }}
+                      onMouseOut={(e) => { e.currentTarget.style.borderColor = cellBorder; }}
                     >
                       {/* Completed checkmark */}
                       {isCompleted && (
@@ -330,6 +341,13 @@ function CalendarGrid({ cycle, completedDays, onDayClick, mobileWeek, setMobileW
                       {isDeload && !isRest && (
                         <div style={{ fontSize: '0.48rem', padding: '0.05rem 0.3rem', borderRadius: '999px', backgroundColor: '#f9fafb', color: '#6b7280', border: '1px solid #d1d5db', lineHeight: 1.4, whiteSpace: 'nowrap' }}>
                           Deload
+                        </div>
+                      )}
+
+                      {/* NEXT badge — only on the specific next session */}
+                      {isNextSess && !isCompleted && (
+                        <div style={{ fontSize: '0.44rem', padding: '0.06rem 0.3rem', borderRadius: '999px', backgroundColor: TERRA, color: '#fff', fontWeight: 700, lineHeight: 1.4, letterSpacing: '0.04em' }}>
+                          NEXT
                         </div>
                       )}
                     </button>
@@ -1144,7 +1162,7 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
   const isLift    = ['push', 'pull', 'legs'].includes(day.type);
   const isRecover = day.type === 'recover';
   const isRest    = day.type === 'rest';
-  const weekday   = WEEKDAYS[dayIdx] ?? '';
+  const weekday   = DAYHEADERS[dayIdx] ?? '';
 
   function handleStartWorkout() {
     const sessionEntry = sessionMap?.find(s => s.weekIdx === weekIdx && s.dayIdx === dayIdx);
@@ -1320,19 +1338,17 @@ export default function KratosSplitViewer({ cycle, initialDay }) {
 
   const [modalWeekIdx, setModalWeekIdx] = useState(initialDay?.weekIdx ?? null);
   const [modalDayIdx,  setModalDayIdx]  = useState(initialDay?.dayIdx  ?? null);
-  const [mobileWeek,   setMobileWeek]   = useState(0);
 
-  // ── Current week detection (real-date based) ───────────────────────
-  const cycleStart    = cycle.created_at ? new Date(cycle.created_at) : null;
-  const today         = new Date();
-  const daysSinceStart = cycleStart
-    ? Math.floor((today - cycleStart) / (1000 * 60 * 60 * 24))
-    : -1;
-  const currentWeekIdx = daysSinceStart >= 0 ? Math.floor(daysSinceStart / 7) : -1;
-  const isInRange      = currentWeekIdx >= 0 && currentWeekIdx < cycle.weeks.length;
+  // ── Session-based current position ────────────────────────────────
+  // "Current" = the next incomplete session, not a calendar date.
+  const nextIncompleteSession = sessionMap.find(s => !completedSessions.has(s.sessionNum)) ?? null;
+  const currentWeekIdx        = nextIncompleteSession?.weekIdx ?? -1;
 
-  function scrollToCurrentWeek() {
-    if (!isInRange) return;
+  // Mobile: start on the current week instead of week 0
+  const [mobileWeek, setMobileWeek] = useState(() => Math.max(0, currentWeekIdx));
+
+  function scrollToNextSession() {
+    if (currentWeekIdx < 0) return;
     weekRowRefs.current[currentWeekIdx]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -1370,9 +1386,9 @@ export default function KratosSplitViewer({ cycle, initialDay }) {
         setMobileWeek={setMobileWeek}
         isMobile={isMobile}
         currentWeekIdx={currentWeekIdx}
-        isInRange={isInRange}
+        nextSession={nextIncompleteSession}
         weekRowRefs={weekRowRefs}
-        onJumpToToday={scrollToCurrentWeek}
+        onJumpToNext={scrollToNextSession}
       />
       {modalWeekIdx !== null && (
         <DayModal

@@ -120,10 +120,11 @@ export default function Home() {
   const [showAbandon,   setShowAbandon]  = useState(false);
   const [abandonBusy,   setAbandonBusy]  = useState(false);
 
-  const [activeCycle, setActiveCycle] = useState(null);
-  const [lastWorkout, setLastWorkout] = useState(null);
-  const [streak,      setStreak]      = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [activeCycle,    setActiveCycle]    = useState(null);
+  const [lastWorkout,    setLastWorkout]    = useState(null);
+  const [streak,         setStreak]         = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [markingComplete, setMarkingComplete] = useState(false);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -171,6 +172,17 @@ export default function Home() {
     endWorkout();
     setShowAbandon(false);
     setAbandonBusy(false);
+  }
+
+  async function handleMarkRecoverComplete() {
+    if (!nextSession || !activeCycle || markingComplete) return;
+    setMarkingComplete(true);
+    const prev = new Set(activeCycle.completed_sessions ?? []);
+    prev.add(nextSession.sessionNum);
+    const arr = [...prev];
+    await supabase.from('cycles').update({ completed_sessions: arr }).eq('id', activeCycle.id);
+    setActiveCycle(c => ({ ...c, completed_sessions: arr }));
+    setMarkingComplete(false);
   }
 
   function formatSec(s) {
@@ -477,14 +489,25 @@ export default function Home() {
                 </button>
               )}
               {isRecover && (
-                <button
-                  onClick={beginWorkout}
-                  style={ctaBtn('transparent', SAGE, SAGE)}
-                  onMouseOver={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-                  onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
-                >
-                  View Recovery Plan →
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.75rem' }}>
+                  <button
+                    onClick={beginWorkout}
+                    style={{ ...ctaBtn('transparent', SAGE, SAGE), marginTop: 0 }}
+                    onMouseOver={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                    onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
+                  >
+                    View Recovery Plan →
+                  </button>
+                  <button
+                    onClick={handleMarkRecoverComplete}
+                    disabled={markingComplete}
+                    style={{ ...ctaBtn('transparent', '#16a34a', '#16a34a'), marginTop: 0, opacity: markingComplete ? 0.6 : 1 }}
+                    onMouseOver={(e) => { if (!markingComplete) e.currentTarget.style.opacity = '0.7'; }}
+                    onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
+                  >
+                    {markingComplete ? 'Marking…' : '✓ Mark Recovery Complete'}
+                  </button>
+                </div>
               )}
             </div>
 

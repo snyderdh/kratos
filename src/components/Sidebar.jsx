@@ -58,23 +58,7 @@ function SidebarContent({ onClose }) {
         <NavItem to="/" label="Home" icon={Home} end onClick={onClose} />
         <NavItem to="/train" label="Train" icon={Dumbbell} onClick={onClose} />
 
-        {/* Kratos Split — featured item */}
-        <NavLink
-          to="/kratos"
-          onClick={onClose}
-          className={({ isActive }) => ['sidebar-nav-item', isActive ? 'sidebar-nav-item--active' : ''].join(' ')}
-          style={({ isActive }) => ({
-            backgroundColor: isActive ? '#F5EDE6' : 'rgba(194,98,42,0.06)',
-            border: `1px solid ${isActive ? TERRA : 'rgba(194,98,42,0.25)'}`,
-          })}
-        >
-          {({ isActive }) => (
-            <>
-              <Zap size={17} strokeWidth={isActive ? 2 : 1.75} color={TERRA} style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, color: TERRA, fontWeight: 400 }}>Kratos Split</span>
-            </>
-          )}
-        </NavLink>
+        <NavItem to="/kratos" label="Kratos Split" icon={Zap} onClick={onClose} />
 
         <NavItem to="/log" label="Workout Log" icon={ClipboardList} onClick={onClose} />
         <NavItem to="/community" label="Community" icon={Users} onClick={onClose} />

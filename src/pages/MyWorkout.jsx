@@ -810,12 +810,13 @@ function AddExercisePanel({ onAdd, onClose, panelTitle = 'Add Exercise' }) {
 }
 
 // ── FinishModal ────────────────────────────────────────────────────────
-function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onKeepGoing }) {
+function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onDeleteExit, onKeepGoing }) {
   const { user }  = useAuth();
   const [title, setTitle]           = useState(workoutTitle);
   const [saveRoutine, setSaveRoutine] = useState(false);
   const [routineName, setRoutineName] = useState(workoutTitle);
   const [saving, setSaving]         = useState(false);
+  const [deleting, setDeleting]     = useState(false);
 
   const duration     = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
   const exerciseCount = activeExercises.length;
@@ -844,7 +845,7 @@ function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onK
   }, [onKeepGoing]);
 
   async function handleSaveExit() {
-    if (saving) return;
+    if (saving || deleting) return;
     setSaving(true);
     try {
       if (saveRoutine && routineName.trim() && user) {
@@ -871,6 +872,20 @@ function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onK
     } finally {
       setSaving(false);
       onSaveExit();
+    }
+  }
+
+  async function handleDeleteExit() {
+    if (saving || deleting) return;
+    setDeleting(true);
+    try {
+      if (user && startTime) {
+        const since = new Date(startTime).toISOString();
+        await supabase.from('workout_logs').delete().eq('user_id', user.id).gte('logged_at', since);
+      }
+    } finally {
+      setDeleting(false);
+      onDeleteExit();
     }
   }
 
@@ -952,13 +967,13 @@ function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onK
 
         <button
           onClick={handleSaveExit}
-          disabled={saving}
+          disabled={saving || deleting}
           style={{
             width: '100%', padding: '0.75rem', borderRadius: '10px', border: 'none',
-            backgroundColor: saving ? '#e5e7eb' : TERRA,
-            color: saving ? C.textSecondary : '#fff',
+            backgroundColor: saving || deleting ? '#e5e7eb' : TERRA,
+            color: saving || deleting ? C.textSecondary : '#fff',
             fontWeight: 400, fontSize: '0.9rem',
-            cursor: saving ? 'default' : 'pointer',
+            cursor: saving || deleting ? 'default' : 'pointer',
             fontFamily: FONTS.body, marginBottom: '0.5rem',
             transition: 'all 0.15s',
           }}
@@ -967,12 +982,26 @@ function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onK
         </button>
         <button
           onClick={onKeepGoing}
+          disabled={saving || deleting}
           style={{
             width: '100%', padding: '0.6rem', border: 'none', background: 'none',
-            color: C.textSecondary, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONTS.body,
+            color: C.textSecondary, fontSize: '0.82rem', cursor: saving || deleting ? 'default' : 'pointer', fontFamily: FONTS.body,
           }}
         >
           Keep Going
+        </button>
+        <button
+          onClick={handleDeleteExit}
+          disabled={saving || deleting}
+          style={{
+            width: '100%', padding: '0.5rem', border: 'none', background: 'none',
+            color: deleting ? C.textSecondary : '#dc2626',
+            fontSize: '0.78rem', fontWeight: 300,
+            cursor: saving || deleting ? 'default' : 'pointer',
+            fontFamily: FONTS.body,
+          }}
+        >
+          {deleting ? 'Deleting…' : 'Delete workout & exit'}
         </button>
       </div>
     </>
@@ -1106,7 +1135,6 @@ function ActiveCycleSection({ onStartKratosSession }) {
       .from('cycles')
       .select('*')
       .eq('user_id', user.id)
-      .eq('split', 'kratos')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -1215,13 +1243,28 @@ function ActiveCycleSection({ onStartKratosSession }) {
 }
 
 // ── HomeView ───────────────────────────────────────────────────────────
-function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession }) {
-  const [tab, setTab] = useState('build');
+function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession, onRemove, onAddExercise, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid }) {
+  const { activeWorkout, isActive, updateTitle } = useActiveWorkout();
+  const activeExercises = activeWorkout?.activeExercises ?? [];
+  const workoutTitle    = activeWorkout?.title ?? '';
+  const startTime       = activeWorkout?.startTime ?? null;
+
+  const [tab, setTab] = useState(() => isActive ? 'workout' : 'cycle');
   const [builderExercises, setBuilderExercises] = useState([]);
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Auto-switch to workout tab when a workout becomes active
+  useEffect(() => {
+    if (isActive) setTab('workout');
+  }, [isActive]);
+
+  // Auto-switch away from workout tab when workout ends
+  useEffect(() => {
+    if (!isActive && tab === 'workout') setTab('cycle');
+  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function addBuilderEx(exData) {
     setBuilderExercises(prev => [...prev, { uid: crypto.randomUUID(), ex: exData, targetSets: 3, supersetGroup: null, supersetLabel: null }]);
@@ -1250,12 +1293,20 @@ function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession 
     });
   }
 
+  const TABS = [
+    { val: 'cycle',    label: 'Current Cycle' },
+    ...(isActive ? [{ val: 'workout', label: 'Active Workout', live: true }] : []),
+    { val: 'build',    label: 'Build My Own' },
+    { val: 'generate', label: 'Generate for Me' },
+    { val: 'routines', label: 'My Routines' },
+  ];
+
   return (
     <div>
       {/* Tab bar */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surface }}>
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 1.25rem', display: 'flex' }}>
-          {[['build', 'Build My Own'], ['generate', 'Generate for Me'], ['routines', 'My Routines']].map(([val, label]) => (
+      <div style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surface, overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div style={{ padding: '0 1.25rem', display: 'flex', minWidth: 'max-content' }}>
+          {TABS.map(({ val, label, live }) => (
             <button
               key={val}
               onClick={() => setTab(val)}
@@ -1263,35 +1314,65 @@ function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession 
                 padding: '0.875rem 0.75rem', border: 'none',
                 borderBottom: `2px solid ${tab === val ? TERRA : 'transparent'}`,
                 backgroundColor: 'transparent',
-                color: tab === val ? TERRA : C.textSecondary,
+                color: live ? TERRA : (tab === val ? TERRA : C.textSecondary),
                 fontWeight: tab === val ? 400 : 300,
                 fontSize: '0.82rem', cursor: 'pointer',
                 transition: 'all 0.15s', fontFamily: FONTS.body,
                 whiteSpace: 'nowrap',
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
               }}
             >
+              {live && (
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TERRA, flexShrink: 0, animation: 'aw-pulse 1.5s ease-in-out infinite' }} />
+              )}
               {label}
             </button>
           ))}
         </div>
       </div>
+      <style>{`@keyframes aw-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }`}</style>
+
+      {/* Current Cycle tab */}
+      {tab === 'cycle' && (
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
+          <ActiveCycleSection onStartKratosSession={onStartKratosSession} />
+        </div>
+      )}
+
+      {/* Active Workout tab — only visible when a workout is in progress */}
+      {tab === 'workout' && isActive && (
+        <ActiveWorkoutView
+          activeExercises={activeExercises}
+          workoutTitle={workoutTitle}
+          setWorkoutTitle={updateTitle}
+          startTime={startTime}
+          onRemove={onRemove}
+          onCompleteSet={onCompleteSet}
+          onSaveAll={onSaveAll}
+          onAddSet={onAddSet}
+          onDeleteSet={onDeleteSet}
+          onCreateSuperset={onCreateSuperset}
+          onFinish={onFinish}
+          savingUid={savingUid}
+          onAddExercise={onAddExercise}
+        />
+      )}
 
       {/* Generate tab — keep mounted to preserve form state */}
       <div style={{ display: tab === 'generate' ? 'block' : 'none' }}>
         <RoutineGenerator />
       </div>
 
+      {/* My Routines tab */}
       {tab === 'routines' && (
         <div style={{ maxWidth: '640px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
           <SavedRoutinesTab onLoadRoutine={onLoadRoutine} />
         </div>
       )}
 
+      {/* Build My Own tab */}
       {tab === 'build' && (
         <div style={{ maxWidth: '640px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
-          {/* Active Kratos Cycle */}
-          <ActiveCycleSection onStartKratosSession={onStartKratosSession} />
-          {/* Empty state or exercise list */}
           {builderExercises.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2rem 1rem', color: C.textSecondary }}>
               <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#F5EDE6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: '1.5rem' }}>💪</div>
@@ -1330,7 +1411,6 @@ function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession 
           {/* CTAs */}
           {builderExercises.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              {/* Save section — always above Start Workout */}
               {showSaveForm ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -1349,7 +1429,7 @@ function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession 
                       setSaving(true);
                       const ok = await onSaveRoutine(builderExercises, saveName);
                       setSaving(false);
-                      if (ok !== false) { setShowSaveForm(false); setSaveName(''); setBuilderExercises([]); setTab('saved'); }
+                      if (ok !== false) { setShowSaveForm(false); setSaveName(''); setBuilderExercises([]); setTab('routines'); }
                     }}
                     style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: `1.5px solid ${C.border}`, backgroundColor: 'transparent', color: C.text, fontWeight: 400, fontSize: '0.9rem', cursor: saving ? 'default' : 'pointer', fontFamily: FONTS.body, opacity: saving ? 0.6 : 1 }}
                   >
@@ -1732,39 +1812,39 @@ export default function MyWorkout() {
     setShowFinish(false);
   }
 
+  async function handleDeleteExit() {
+    if (user && activeWorkout?.startTime) {
+      const since = new Date(activeWorkout.startTime).toISOString();
+      await supabase.from('workout_logs').delete().eq('user_id', user.id).gte('logged_at', since);
+    }
+    endWorkout();
+    setShowFinish(false);
+  }
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: C.bg }}>
-      {!isActive && (
-        <HomeView
-          onStart={handleStart}
-          onLoadRoutine={handleLoadRoutine}
-          onSaveRoutine={handleSaveRoutine}
-          onStartKratosSession={handleStartKratosSession}
-        />
-      )}
-      {isActive && (
-        <ActiveWorkoutView
-          activeExercises={activeExercises}
-          workoutTitle={workoutTitle}
-          setWorkoutTitle={updateTitle}
-          startTime={startTime}
-          onRemove={handleRemove}
-          onCompleteSet={handleCompleteSet}
-          onSaveAll={handleSaveAll}
-          onAddSet={handleAddSet}
-          onDeleteSet={handleDeleteSet}
-          onCreateSuperset={handleCreateSuperset}
-          onFinish={() => setShowFinish(true)}
-          savingUid={savingUid}
-          onAddExercise={handleAddExercise}
-        />
-      )}
+      <HomeView
+        onStart={handleStart}
+        onLoadRoutine={handleLoadRoutine}
+        onSaveRoutine={handleSaveRoutine}
+        onStartKratosSession={handleStartKratosSession}
+        onRemove={handleRemove}
+        onAddExercise={handleAddExercise}
+        onCompleteSet={handleCompleteSet}
+        onSaveAll={handleSaveAll}
+        onAddSet={handleAddSet}
+        onDeleteSet={handleDeleteSet}
+        onCreateSuperset={handleCreateSuperset}
+        onFinish={() => setShowFinish(true)}
+        savingUid={savingUid}
+      />
       {isActive && showFinish && (
         <FinishModal
           activeExercises={activeExercises}
           startTime={startTime}
           workoutTitle={workoutTitle}
           onSaveExit={handleSaveExit}
+          onDeleteExit={handleDeleteExit}
           onKeepGoing={() => setShowFinish(false)}
         />
       )}

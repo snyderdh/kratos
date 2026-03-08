@@ -226,7 +226,7 @@ export default function Sidebar() {
           .sidebar-main-content {
             margin-left: 0 !important;
             padding-top: 3.5rem;
-            padding-bottom: 56px;
+            padding-bottom: calc(56px + env(safe-area-inset-bottom));
           }
           .bottom-tab-bar { display: flex !important; }
         }

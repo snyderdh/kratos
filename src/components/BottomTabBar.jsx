@@ -35,7 +35,8 @@ export default function BottomTabBar() {
         justifyContent: 'space-around',
         alignItems: 'stretch',
         zIndex: 100,
-        height: '56px',
+        height: 'calc(56px + env(safe-area-inset-bottom))',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
       {tabs.map(({ to, label, icon: Icon, end, live }) => (

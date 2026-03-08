@@ -80,7 +80,7 @@ export default function ActiveWorkoutBanner() {
       </div>
       <style>{`
         @keyframes aw-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
-        @media (max-width: 768px) { .active-workout-banner { bottom: 56px !important; } }
+        @media (max-width: 768px) { .active-workout-banner { bottom: calc(56px + env(safe-area-inset-bottom)) !important; } }
       `}</style>
     </>
   );

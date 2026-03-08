@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Dumbbell, Users, UserCircle } from 'lucide-react';
+import { Home, Dumbbell, Zap, ClipboardList } from 'lucide-react';
 import { C, FONTS } from '../theme';
 
 const tabs = [
-  { to: '/',          label: 'Home',      icon: Home,        end: true },
-  { to: '/generate',  label: 'Train',     icon: Dumbbell },
-  { to: '/community', label: 'Community', icon: Users },
-  { to: '/profile',   label: 'Profile',   icon: UserCircle },
+  { to: '/',      label: 'Home',   icon: Home,          end: true },
+  { to: '/train', label: 'Train',  icon: Dumbbell },
+  { to: '/kratos',label: 'Kratos', icon: Zap },
+  { to: '/log',   label: 'Log',    icon: ClipboardList },
 ];
 
 export default function BottomTabBar() {

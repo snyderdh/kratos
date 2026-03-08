@@ -148,7 +148,7 @@ export default function CycleGenerator() {
 
       {/* Kratos Split featured preset */}
       <div
-        onClick={() => navigate('/kratos-split')}
+        onClick={() => navigate('/kratos')}
         style={{
           background: 'linear-gradient(135deg, #1A0F06 0%, #2A1505 100%)',
           borderRadius: '12px', padding: '1.375rem 1.5rem',
@@ -161,7 +161,7 @@ export default function CycleGenerator() {
         onMouseOut={(e)  => { e.currentTarget.style.borderColor = 'rgba(194,98,42,0.3)'; }}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter') navigate('/kratos-split'); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') navigate('/kratos'); }}
       >
         <div style={{
           position: 'absolute', inset: 0,

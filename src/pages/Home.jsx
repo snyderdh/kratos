@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useActiveWorkout } from '../context/ActiveWorkoutContext';
 import { supabase } from '../supabase';
 import { C, FONTS, card } from '../theme';
 
@@ -30,59 +31,83 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function getTodayInCycle(cycle) {
-  if (!cycle?.weeks?.length) return null;
-  const createdAt = new Date(cycle.created_at);
-  createdAt.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const daysSince = Math.floor((today - createdAt) / 86400000);
-  const totalWeeks = cycle.cycle_length ?? cycle.weeks.length;
-  if (daysSince < 0 || daysSince >= totalWeeks * 7) return null;
-  const weekIdx = Math.floor(daysSince / 7);
-  const dayIdx  = daysSince % 7;
-  const week    = cycle.weeks[weekIdx];
-  if (!week?.days) return null;
-  return {
-    weekIdx,
-    dayIdx,
-    weekNum:    weekIdx + 1,
-    totalWeeks,
-    day:        week.days[dayIdx] ?? null,
-    phase:      week.phase ?? null,
-    daysSince,
-  };
+// Build ordered session map from cycle (non-rest days only)
+function buildSessionMap(cycle) {
+  const sessions = [];
+  let num = 1;
+  (cycle.weeks ?? []).forEach((week, weekIdx) => {
+    (week.days ?? []).forEach((day, dayIdx) => {
+      if (day.type !== 'rest') {
+        sessions.push({
+          sessionNum: num++,
+          weekIdx,
+          dayIdx,
+          day,
+          phase:   week.phase ?? 'foundation',
+          weekNum: weekIdx + 1,
+        });
+      }
+    });
+  });
+  return sessions;
 }
 
-function getPhaseName(phase, weekNum, totalWeeks) {
-  if (phase && PHASE_LABELS[phase]) return PHASE_LABELS[phase];
-  const pct = weekNum / totalWeeks;
-  if (pct <= 0.25) return 'Foundation';
-  if (pct <= 0.5)  return 'Build';
-  if (pct <= 0.75) return 'Overload';
-  return 'Peak';
-}
-
-function getNextMilestone(cycle, todayInfo) {
-  if (!todayInfo?.phase || !cycle?.weeks) return null;
-  const { weekIdx, daysSince } = todayInfo;
-  const currentPhase = cycle.weeks[weekIdx]?.phase;
-  if (!currentPhase) return null;
-  for (let w = weekIdx + 1; w < cycle.weeks.length; w++) {
-    const nextPhase = cycle.weeks[w]?.phase;
-    if (nextPhase && nextPhase !== currentPhase) {
-      const daysUntilWeekStart = 7 - (daysSince % 7);
-      const totalDaysUntil     = daysUntilWeekStart + (w - weekIdx - 1) * 7;
-      const label = PHASE_LABELS[nextPhase] ?? nextPhase;
-      if (totalDaysUntil <= 1) return `${label} phase starts tomorrow`;
-      if (totalDaysUntil <= 6) return `${label} week in ${totalDaysUntil} days`;
-      const target = new Date();
-      target.setDate(target.getDate() + totalDaysUntil);
-      const dayName = target.toLocaleDateString('en-US', { weekday: 'long' });
-      return `${label} phase starts ${dayName}`;
+// Sessions until the next phase change (shown as right-side label on progress bar)
+function getNextMilestone(sessionMap, nextSession) {
+  if (!nextSession || !sessionMap.length) return null;
+  const currentPhase = nextSession.phase;
+  for (const s of sessionMap) {
+    if (s.sessionNum <= nextSession.sessionNum) continue;
+    if (s.phase !== currentPhase) {
+      const dist  = s.sessionNum - nextSession.sessionNum;
+      const label = PHASE_LABELS[s.phase] ?? s.phase;
+      if (dist === 1) return `${label} phase next session`;
+      return `${label} phase in ${dist} sessions`;
     }
   }
   return null;
+}
+
+// Process workout_logs → streak (7 booleans) + lastWorkout summary
+function processLogs(logs) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 7-day streak: oldest day first (index 0 = 6 days ago, index 6 = today)
+  const streak = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    streak.push(logs.some((l) => l.logged_at?.startsWith(dateStr)));
+  }
+
+  if (!logs.length) return { streak, lastWorkout: null };
+
+  const mostRecentDate = logs[0].logged_at?.split('T')[0];
+  if (!mostRecentDate) return { streak, lastWorkout: null };
+
+  const sessionLogs    = logs.filter((l) => l.logged_at?.startsWith(mostRecentDate));
+  const dayType        = sessionLogs[0]?.day_type ?? '';
+  const exerciseNames  = [...new Set(sessionLogs.map((l) => l.exercise_name))];
+  let vol = 0, rpeSum = 0, rpeCount = 0;
+  sessionLogs.forEach((l) => {
+    if (l.weight_lbs && l.reps_completed) {
+      vol += parseFloat(l.weight_lbs) * parseInt(l.reps_completed, 10);
+    }
+    if (l.rpe_actual) { rpeSum += parseFloat(l.rpe_actual); rpeCount++; }
+  });
+
+  return {
+    streak,
+    lastWorkout: {
+      date:          mostRecentDate,
+      dayType,
+      exerciseCount: exerciseNames.length,
+      totalVolume:   Math.round(vol),
+      avgRPE:        rpeCount > 0 ? (rpeSum / rpeCount).toFixed(1) : null,
+    },
+  };
 }
 
 export default function Home() {
@@ -90,47 +115,106 @@ export default function Home() {
   const navigate = useNavigate();
   const name = profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Athlete';
 
+  const { activeWorkout, isActive, loggedSetCount, endWorkout } = useActiveWorkout();
+  const [elapsed,       setElapsed]      = useState(0);
+  const [showAbandon,   setShowAbandon]  = useState(false);
+  const [abandonBusy,   setAbandonBusy]  = useState(false);
+
   const [activeCycle, setActiveCycle] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [lastWorkout, setLastWorkout] = useState(null);
+  const [streak,      setStreak]      = useState([]);
+  const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    supabase
-      .from('cycles')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .then(({ data }) => {
-        setActiveCycle(data?.[0] ?? null);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase
+        .from('cycles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('workout_logs')
+        .select('logged_at, day_type, exercise_name, weight_lbs, reps_completed, rpe_actual')
+        .eq('user_id', user.id)
+        .order('logged_at', { ascending: false })
+        .limit(200),
+    ]).then(([{ data: cycleData }, { data: logData }]) => {
+      setActiveCycle(cycleData?.[0] ?? null);
+      const { streak: s, lastWorkout: lw } = processLogs(logData ?? []);
+      setStreak(s);
+      setLastWorkout(lw);
+      setLoading(false);
+    });
   }, [user]);
 
-  const todayInfo     = useMemo(() => getTodayInCycle(activeCycle), [activeCycle]);
-  const nextMilestone = useMemo(() => getNextMilestone(activeCycle, todayInfo), [activeCycle, todayInfo]);
+  // Active workout elapsed timer
+  useEffect(() => {
+    if (!isActive || !activeWorkout?.startTime) { setElapsed(0); return; }
+    setElapsed(Math.floor((Date.now() - activeWorkout.startTime) / 1000));
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - activeWorkout.startTime) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [isActive, activeWorkout?.startTime]);
 
-  const isRest    = todayInfo?.day?.type === 'rest';
-  const isRecover = todayInfo?.day?.type === 'recover';
-  const isLiftDay = todayInfo?.day && !isRest && !isRecover;
+  async function handleKeepLogs() {
+    endWorkout();
+    setShowAbandon(false);
+  }
 
-  const phaseName  = todayInfo ? getPhaseName(todayInfo.phase, todayInfo.weekNum, todayInfo.totalWeeks) : null;
-  const phaseColor = todayInfo?.phase ? (PHASE_COLORS[todayInfo.phase] ?? C.accent) : C.accent;
+  async function handleDiscardEverything() {
+    setAbandonBusy(true);
+    if (user && activeWorkout?.startTime) {
+      const since = new Date(activeWorkout.startTime).toISOString();
+      await supabase.from('workout_logs').delete().eq('user_id', user.id).gte('logged_at', since);
+    }
+    endWorkout();
+    setShowAbandon(false);
+    setAbandonBusy(false);
+  }
 
-  // progressPct: percentage of weeks started (not completed weeks - 1) so it reflects current position
-  const progressPct = todayInfo
-    ? Math.min(100, Math.round(((todayInfo.weekNum - 1) / todayInfo.totalWeeks) * 100))
-    : 0;
+  function formatSec(s) {
+    if (s >= 3600) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+
+  // Derived session state
+  const sessionMap     = useMemo(() => activeCycle ? buildSessionMap(activeCycle) : [], [activeCycle]);
+  const completedSet   = useMemo(() => new Set(activeCycle?.completed_sessions ?? []), [activeCycle]);
+  const totalSessions  = sessionMap.length;
+  const completedCount = completedSet.size;
+
+  // Next incomplete session (first session not in completed set)
+  const nextSession = useMemo(
+    () => sessionMap.find((s) => !completedSet.has(s.sessionNum)) ?? null,
+    [sessionMap, completedSet]
+  );
+
+  const nextMilestone  = useMemo(() => getNextMilestone(sessionMap, nextSession), [sessionMap, nextSession]);
+  const cycleComplete  = activeCycle && !nextSession;
+  const isRecover      = nextSession?.day?.type === 'recover';
+  const isLiftDay      = nextSession?.day && !isRecover;
+  const phaseName      = nextSession ? (PHASE_LABELS[nextSession.phase] ?? nextSession.phase) : null;
+  const phaseColor     = nextSession?.phase ? (PHASE_COLORS[nextSession.phase] ?? C.accent) : C.accent;
+  const progressPct    = totalSessions > 0 ? Math.min(100, Math.round((completedCount / totalSessions) * 100)) : 0;
 
   const dayTypeLabel = {
-    push: 'Push', pull: 'Pull', legs: 'Legs', recover: 'Recover', rest: 'Rest',
-  }[todayInfo?.day?.type] ?? (todayInfo?.day?.type ?? '');
+    push: 'Push', pull: 'Pull', legs: 'Legs', recover: 'Recover',
+  }[nextSession?.day?.type] ?? (nextSession?.day?.type ?? '');
 
   function beginWorkout() {
-    navigate('/saved-cycles', {
+    if (!nextSession) return;
+    navigate('/kratos', {
       state: {
+        tab: 'cycles',
         autoLoad: activeCycle.id,
-        autoDay:  { weekIdx: todayInfo.weekIdx, dayIdx: todayInfo.dayIdx },
+        autoDay:  { weekIdx: nextSession.weekIdx, dayIdx: nextSession.dayIdx },
       },
     });
   }
@@ -161,7 +245,7 @@ export default function Home() {
     padding: '0.18rem 0.65rem',
     letterSpacing: '0.09em',
     textTransform: 'uppercase',
-    marginBottom: '0.875rem',
+    marginBottom: '0.5rem',
   });
 
   const ctaBtn = (bg, fg, border) => ({
@@ -181,8 +265,102 @@ export default function Home() {
     display: 'block',
   });
 
+  const editorialLabel = {
+    fontSize: '0.58rem',
+    fontWeight: 700,
+    color: TERRA,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    marginBottom: '0.4rem',
+    fontFamily: FONTS.body,
+  };
+
+  const streakDaysActive = streak.filter(Boolean).length;
+
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', padding: '3.5rem 1.5rem' }}>
+
+      {/* ── Active Workout Tile ───────────────────────────────────────── */}
+      {isActive && activeWorkout && (
+        <div style={{
+          ...card,
+          padding: '1rem 1.25rem',
+          marginBottom: '1.75rem',
+          borderLeft: `3px solid ${TERRA}`,
+          cursor: 'pointer',
+        }}
+          onClick={() => navigate('/train')}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.55rem', fontWeight: 700, color: TERRA, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.25rem', fontFamily: FONTS.body }}>
+                Active Workout
+              </div>
+              <div style={{ fontWeight: 400, color: C.text, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.2rem' }}>
+                {activeWorkout.title ?? 'Workout in Progress'}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300 }}>
+                {formatSec(elapsed)} · {loggedSetCount} set{loggedSetCount !== 1 ? 's' : ''} logged
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: '1rem' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: TERRA, animation: 'aw-pulse 1.5s ease-in-out infinite' }} />
+              <span style={{ fontSize: '0.78rem', fontWeight: 500, color: TERRA, fontFamily: FONTS.body }}>Resume →</span>
+            </div>
+          </div>
+          <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowAbandon(true); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, fontFamily: FONTS.body, padding: '0.1rem 0', textDecoration: 'underline', textDecorationColor: C.border }}
+            >
+              Abandon workout
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Abandon Sheet ─────────────────────────────────────────────── */}
+      {showAbandon && (
+        <div
+          onClick={() => setShowAbandon(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 9000, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: C.surface, borderRadius: '16px 16px 0 0', width: '100%', maxWidth: '560px', padding: '1.5rem 1.5rem 2rem', boxShadow: '0 -8px 48px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+              <div style={{ width: '36px', height: '4px', borderRadius: '2px', backgroundColor: C.border }} />
+            </div>
+            <h3 style={{ margin: '0 0 0.4rem', fontSize: '1rem', fontWeight: 500, color: C.text, fontFamily: FONTS.heading }}>Abandon Workout?</h3>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.82rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.55 }}>
+              What would you like to do with the sets you've already logged?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button
+                onClick={handleKeepLogs}
+                style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: `1.5px solid ${C.border}`, backgroundColor: 'transparent', color: C.text, fontWeight: 400, fontSize: '0.875rem', cursor: 'pointer', fontFamily: FONTS.body }}
+              >
+                Keep what I've logged
+              </button>
+              <button
+                onClick={handleDiscardEverything}
+                disabled={abandonBusy}
+                style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: 'none', backgroundColor: abandonBusy ? '#e5e7eb' : '#fef2f2', color: abandonBusy ? C.textSecondary : '#dc2626', fontWeight: 400, fontSize: '0.875rem', cursor: abandonBusy ? 'default' : 'pointer', fontFamily: FONTS.body }}
+              >
+                {abandonBusy ? 'Discarding…' : 'Discard everything'}
+              </button>
+              <button
+                onClick={() => setShowAbandon(false)}
+                style={{ width: '100%', padding: '0.6rem', borderRadius: '10px', border: 'none', backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 300, fontSize: '0.82rem', cursor: 'pointer', fontFamily: FONTS.body }}
+              >
+                Keep going
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes aw-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }`}</style>
 
       {/* ── Greeting ─────────────────────────────────────────────────── */}
       <h1 style={{
@@ -191,41 +369,61 @@ export default function Home() {
         fontFamily: FONTS.heading,
         fontStyle: 'italic',
         color: C.text,
-        margin: '0 0 2.5rem',
+        margin: '0 0 1.25rem',
         letterSpacing: '-0.3px',
         lineHeight: 1.15,
       }}>
         {getGreeting()}, {name}.
       </h1>
 
+      {/* ── 7-day streak dots ─────────────────────────────────────────── */}
+      {streak.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '2rem' }}>
+          {streak.map((active, i) => (
+            <div
+              key={i}
+              style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                backgroundColor: active ? TERRA : C.border,
+                transition: 'background-color 0.2s',
+              }}
+            />
+          ))}
+          {streakDaysActive > 0 && (
+            <span style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300, marginLeft: '0.25rem' }}>
+              {streakDaysActive} day{streakDaysActive !== 1 ? 's' : ''} trained this week
+            </span>
+          )}
+        </div>
+      )}
+
       {activeCycle ? (
         <>
-          {/* ── Today's Workout Card ─────────────────────────────────── */}
-          {isRest ? (
-            /* Rest day — no CTA */
-            <div style={{
-              ...card,
-              padding: '2rem 2.25rem',
-              marginBottom: '1.25rem',
-              borderLeft: `3px solid #c4bfbb`,
-            }}>
-              <span style={dayBadge('#9E9189', '#F5F3F2', '#e0dbd7')}>Rest</span>
+          {/* ── Next Workout Card ──────────────────────────────────────── */}
+          {(cycleComplete || nextSession) && <div style={editorialLabel}>Next Workout</div>}
+          {cycleComplete ? (
+            /* All sessions complete */
+            <div style={{ ...card, padding: '2rem 2.25rem', marginBottom: '1.25rem' }}>
               <p style={{
-                fontFamily: FONTS.heading,
-                fontSize: '1.35rem',
-                fontWeight: 400,
-                color: C.text,
-                margin: '0 0 0.4rem',
-                lineHeight: 1.35,
+                fontFamily: FONTS.heading, fontStyle: 'italic', fontSize: '1.35rem',
+                fontWeight: 400, color: C.text, margin: '0 0 0.5rem',
               }}>
-                Rest Day — Recovery is training too.
+                Cycle complete.
               </p>
-              <p style={{ fontSize: '0.78rem', color: C.textSecondary, fontWeight: 300, margin: 0 }}>
-                Week {todayInfo.weekNum} · {phaseName} Phase
+              <p style={{ color: C.textSecondary, fontWeight: 300, margin: '0 0 1.25rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                Congratulations — you've finished all {totalSessions} sessions. Start a new block to keep progressing.
               </p>
+              <button
+                onClick={() => navigate('/kratos')}
+                style={ctaBtn(TERRA, '#fff', null)}
+                onMouseOver={(e) => { e.currentTarget.style.opacity = '0.87'; }}
+                onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
+              >
+                Begin New Cycle →
+              </button>
             </div>
 
-          ) : todayInfo ? (
+          ) : nextSession ? (
             /* Lifting or recover day */
             <div style={{
               ...card,
@@ -242,7 +440,7 @@ export default function Home() {
                 {dayTypeLabel}
               </span>
 
-              {/* Week · Phase */}
+              {/* "Next Up" metadata */}
               <div style={{
                 fontSize: '0.7rem',
                 color: C.textSecondary,
@@ -250,7 +448,7 @@ export default function Home() {
                 letterSpacing: '0.04em',
                 marginBottom: '0.5rem',
               }}>
-                Week {todayInfo.weekNum} · {phaseName} Phase
+                Next Up: {dayTypeLabel} · Week {nextSession.weekNum} · {phaseName}
               </div>
 
               {/* Exercise count / description */}
@@ -262,7 +460,7 @@ export default function Home() {
                 lineHeight: 1.25,
               }}>
                 {isLiftDay
-                  ? `${todayInfo.day.exercises?.length ?? 0} exercises${todayInfo.day.totalEstimatedMin ? ` · ${todayInfo.day.totalEstimatedMin} min` : ''}`
+                  ? `${nextSession.day.exercises?.length ?? 0} exercises${nextSession.day.estimatedMin || nextSession.day.totalEstimatedMin ? ` · ${nextSession.day.estimatedMin ?? nextSession.day.totalEstimatedMin} min` : ''}`
                   : 'Active recovery · Mobility & light cardio'
                 }
               </div>
@@ -290,29 +488,49 @@ export default function Home() {
               )}
             </div>
 
-          ) : (
-            /* Cycle exists but today is outside it */
-            <div style={{ ...card, padding: '2rem 2.25rem', marginBottom: '1.25rem' }}>
-              <p style={{ color: C.textSecondary, fontWeight: 300, margin: '0 0 1.25rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
-                Your current cycle has completed. Start a new training block to continue.
-              </p>
-              <button
-                onClick={() => navigate('/kratos-split')}
-                style={ctaBtn(TERRA, '#fff', null)}
-                onMouseOver={(e) => { e.currentTarget.style.opacity = '0.87'; }}
-                onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
-              >
-                Begin New Cycle →
-              </button>
+          ) : null}
+
+          {/* ── Last Workout Card ──────────────────────────────────────── */}
+          {lastWorkout && (
+            <>
+            <div style={editorialLabel}>Last Workout</div>
+            <div style={{ ...card, padding: '1.125rem 1.5rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontWeight: 400, color: C.text, fontSize: '0.9rem', marginBottom: '0.15rem', textTransform: 'capitalize' }}>
+                    {lastWorkout.dayType || 'Workout'} Day
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300 }}>
+                    {new Date(lastWorkout.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {' · '}{lastWorkout.exerciseCount} exercise{lastWorkout.exerciseCount !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
+                  {lastWorkout.totalVolume > 0 && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 500, color: C.text, fontFamily: FONTS.heading }}>{lastWorkout.totalVolume.toLocaleString()}</div>
+                      <div style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.06em' }}>lbs volume</div>
+                    </div>
+                  )}
+                  {lastWorkout.avgRPE && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 500, color: C.text, fontFamily: FONTS.heading }}>{lastWorkout.avgRPE}</div>
+                      <div style={{ fontSize: '0.58rem', color: C.textSecondary, fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.06em' }}>avg RPE</div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
+            </>
           )}
 
           {/* ── Cycle Progress ────────────────────────────────────────── */}
+          <div style={editorialLabel}>Current Cycle</div>
           <div
-            onClick={() => navigate('/saved-cycles', { state: { autoLoad: activeCycle.id } })}
+            onClick={() => navigate('/kratos', { state: { tab: 'cycles', autoLoad: activeCycle.id } })}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/saved-cycles', { state: { autoLoad: activeCycle.id } }); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/kratos', { state: { tab: 'cycles', autoLoad: activeCycle.id } }); }}
             onMouseOver={(e) => { e.currentTarget.style.borderColor = TERRA; }}
             onMouseOut={(e)  => { e.currentTarget.style.borderColor = C.border; }}
             style={{ ...card, padding: '1.375rem 1.75rem', cursor: 'pointer', transition: 'border-color 0.15s' }}
@@ -333,13 +551,10 @@ export default function Home() {
                   {activeCycle.title}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300 }}>
-                  {todayInfo
-                    ? `Week ${todayInfo.weekNum} of ${todayInfo.totalWeeks}`
-                    : `${activeCycle.cycle_length ?? activeCycle.weeks?.length ?? '?'} weeks`
-                  }
+                  {completedCount} of {totalSessions} sessions complete
                 </div>
               </div>
-              {phaseName && (
+              {phaseName && nextSession && (
                 <span style={{
                   fontSize: '0.58rem',
                   fontWeight: 600,
@@ -358,14 +573,8 @@ export default function Home() {
               )}
             </div>
 
-            {/* Thin terracotta progress bar */}
-            <div style={{
-              height: '2px',
-              backgroundColor: C.border,
-              borderRadius: '999px',
-              overflow: 'hidden',
-              marginBottom: '0.6rem',
-            }}>
+            {/* Session progress bar */}
+            <div style={{ height: '2px', backgroundColor: C.border, borderRadius: '999px', overflow: 'hidden', marginBottom: '0.6rem' }}>
               <div style={{
                 height: '100%',
                 width: `${progressPct}%`,
@@ -376,15 +585,8 @@ export default function Home() {
             </div>
 
             {/* Labels */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: '0.65rem',
-              color: C.textSecondary,
-              fontWeight: 300,
-              lineHeight: 1.4,
-            }}>
-              <span>{progressPct}% complete</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.4 }}>
+              <span>{completedCount} / {totalSessions} sessions</span>
               {nextMilestone && <span style={{ textAlign: 'right' }}>{nextMilestone}</span>}
             </div>
           </div>
@@ -415,7 +617,7 @@ export default function Home() {
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
-              onClick={() => navigate('/kratos-split')}
+              onClick={() => navigate('/kratos')}
               style={{
                 flex: '1 1 140px',
                 padding: '0.75rem 1rem',
@@ -435,7 +637,7 @@ export default function Home() {
               Begin Kratos Split
             </button>
             <button
-              onClick={() => navigate('/cycle')}
+              onClick={() => navigate('/kratos', { state: { tab: 'generate' } })}
               style={{
                 flex: '1 1 140px',
                 padding: '0.75rem 1rem',

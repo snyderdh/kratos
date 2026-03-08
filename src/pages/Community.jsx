@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { C, FONTS, card, btnPrimary, inputBase, tagBase } from '../theme';
+import Athletes from './Athletes';
 
 // ── Utility ────────────────────────────────────────────────────────────────
 function timeAgo(iso) {
@@ -310,8 +311,11 @@ function FeedCard({ routine, userId, liked, likeCount, onLike }) {
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
+const TERRA = '#C2622A';
+
 export default function Community() {
   const { user } = useAuth();
+  const [tab, setTab] = useState('feed');
   const [routines, setRoutines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -374,62 +378,94 @@ export default function Community() {
   }
 
   return (
-    <div style={{ maxWidth: '700px', margin: '0 auto', padding: '2rem 1rem' }}>
-      {/* Page header */}
-      <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 500, color: C.text, marginBottom: '0.25rem', fontFamily: FONTS.heading }}>
-            Community
-          </h1>
-          <p style={{ color: C.textSecondary, fontSize: '0.95rem', fontWeight: 300 }}>
-            Routines shared by athletes like you.
-          </p>
+    <div>
+      {/* Page header + tabs */}
+      <div style={{ maxWidth: '700px', margin: '0 auto', padding: '2rem 1rem 0' }}>
+        <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h1 style={{ fontSize: '2rem', fontWeight: 500, color: C.text, marginBottom: '0.25rem', fontFamily: FONTS.heading }}>
+              Community
+            </h1>
+            <p style={{ color: C.textSecondary, fontSize: '0.95rem', fontWeight: 300 }}>
+              Routines and athletes.
+            </p>
+          </div>
+          {tab === 'feed' && (
+            <button
+              onClick={loadFeed}
+              style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontWeight: 300, fontSize: '0.8rem', cursor: 'pointer', transition: 'border-color 0.15s' }}
+              onMouseOver={(e) => (e.currentTarget.style.borderColor = C.accent)}
+              onMouseOut={(e) => (e.currentTarget.style.borderColor = C.border)}
+            >
+              Refresh
+            </button>
+          )}
         </div>
-        <button
-          onClick={loadFeed}
-          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: C.surface, color: C.text, fontWeight: 300, fontSize: '0.8rem', cursor: 'pointer', transition: 'border-color 0.15s' }}
-          onMouseOver={(e) => (e.currentTarget.style.borderColor = C.accent)}
-          onMouseOut={(e) => (e.currentTarget.style.borderColor = C.border)}
-        >
-          Refresh
-        </button>
-      </div>
 
-      {/* States */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-          <div style={{ width: '36px', height: '36px', border: `3px solid ${C.border}`, borderTop: `3px solid ${C.accent}`, borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto' }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      ) : error ? (
-        <div style={{ textAlign: 'center', padding: '3rem', ...card }}>
-          <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.9rem' }}>{error}</p>
-          <button onClick={loadFeed} style={{ color: C.accent, fontWeight: 400, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>
-            Try again
-          </button>
-        </div>
-      ) : routines.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem 2rem', ...card }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏋️</div>
-          <p style={{ color: C.text, fontSize: '1.05rem', fontWeight: 500, marginBottom: '0.5rem', fontFamily: FONTS.heading }}>No shared routines yet</p>
-          <p style={{ color: C.textSecondary, fontSize: '0.875rem', fontWeight: 300 }}>
-            Generate a routine and toggle <strong>Share to Community</strong> when saving — yours could be first!
-          </p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {routines.map((r) => (
-            <FeedCard
-              key={r.id}
-              routine={r}
-              userId={user?.id}
-              liked={userLikes.has(r.id)}
-              likeCount={likeCounts[r.id] ?? 0}
-              onLike={() => toggleLike(r.id)}
-            />
+        {/* Tab bar */}
+        <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, marginBottom: '1.5rem' }}>
+          {[['feed', 'Feed'], ['athletes', 'Athletes']].map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setTab(val)}
+              style={{
+                padding: '0.625rem 1.25rem', border: 'none',
+                borderBottom: `2px solid ${tab === val ? TERRA : 'transparent'}`,
+                backgroundColor: 'transparent',
+                color: tab === val ? TERRA : C.textSecondary,
+                fontWeight: tab === val ? 400 : 300,
+                fontSize: '0.875rem', cursor: 'pointer',
+                transition: 'all 0.15s', fontFamily: FONTS.body,
+              }}
+            >
+              {label}
+            </button>
           ))}
         </div>
+      </div>
+
+      {/* Feed tab */}
+      {tab === 'feed' && (
+        <div style={{ maxWidth: '700px', margin: '0 auto', padding: '0 1rem' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '4rem 0' }}>
+              <div style={{ width: '36px', height: '36px', border: `3px solid ${C.border}`, borderTop: `3px solid ${C.accent}`, borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto' }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          ) : error ? (
+            <div style={{ textAlign: 'center', padding: '3rem', ...card }}>
+              <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.9rem' }}>{error}</p>
+              <button onClick={loadFeed} style={{ color: C.accent, fontWeight: 400, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>
+                Try again
+              </button>
+            </div>
+          ) : routines.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '4rem 2rem', ...card }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏋️</div>
+              <p style={{ color: C.text, fontSize: '1.05rem', fontWeight: 500, marginBottom: '0.5rem', fontFamily: FONTS.heading }}>No shared routines yet</p>
+              <p style={{ color: C.textSecondary, fontSize: '0.875rem', fontWeight: 300 }}>
+                Generate a routine and toggle <strong>Share to Community</strong> when saving — yours could be first!
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {routines.map((r) => (
+                <FeedCard
+                  key={r.id}
+                  routine={r}
+                  userId={user?.id}
+                  liked={userLikes.has(r.id)}
+                  likeCount={likeCounts[r.id] ?? 0}
+                  onLike={() => toggleLike(r.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
+
+      {/* Athletes tab */}
+      {tab === 'athletes' && <Athletes />}
     </div>
   );
 }

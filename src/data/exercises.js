@@ -3108,6 +3108,98 @@ export const exercises = [
     trackingType: 'reps',
     cue: 'Keep the core braced and hips still — only the arms and kettlebell move. Alternate directions each set.',
   },
+
+  // CARDIO
+  {
+    id: 201, name: 'Sprints / Running Intervals', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'intermediate', description: 'High-intensity sprint intervals.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['core'], tier: 3, movementPattern: 'carry', explosive: true,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'cardio_distance_time',
+  },
+  {
+    id: 202, name: 'Rowing Intervals', muscleGroup: 'cardio', equipment: 'machine',
+    difficulty: 'intermediate', description: 'High-intensity rowing ergometer intervals.', primaryMuscles: ['back'],
+    secondaryMuscles: ['legs', 'core'], tier: 3, movementPattern: 'pull', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_distance_time',
+  },
+  {
+    id: 203, name: 'SkiErg', muscleGroup: 'cardio', equipment: 'machine',
+    difficulty: 'intermediate', description: 'Ski ergometer cardio intervals.', primaryMuscles: ['back'],
+    secondaryMuscles: ['core', 'shoulders'], tier: 3, movementPattern: 'pull', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_distance_time',
+  },
+  {
+    id: 204, name: 'Assault Bike', muscleGroup: 'cardio', equipment: 'machine',
+    difficulty: 'intermediate', description: 'Full-body air bike intervals.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['shoulders', 'core'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_time_calories',
+  },
+  {
+    id: 205, name: 'Stairmaster Intervals', muscleGroup: 'cardio', equipment: 'machine',
+    difficulty: 'beginner', description: 'Stairmaster steady-state or interval work.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['glutes'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_time',
+  },
+  {
+    id: 206, name: 'Jump Rope', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'beginner', description: 'Jump rope conditioning.', primaryMuscles: ['calves'],
+    secondaryMuscles: ['shoulders'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'cardio_time_reps',
+  },
+  {
+    id: 207, name: 'Box Jumps', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'intermediate', description: 'Explosive box jump for power and conditioning.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['glutes'], tier: 3, movementPattern: 'squat', explosive: true,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 208, name: 'Burpees', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'beginner', description: 'Full-body conditioning exercise.', primaryMuscles: ['chest'],
+    secondaryMuscles: ['legs', 'shoulders'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 209, name: 'Jump Squats', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'beginner', description: 'Explosive squat jump for power and conditioning.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['glutes'], tier: 3, movementPattern: 'squat', explosive: true,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 210, name: 'Jump Lunges', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'beginner', description: 'Alternating explosive split squats.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['glutes'], tier: 3, movementPattern: 'squat', explosive: true,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'reps',
+  },
+  {
+    id: 211, name: 'Sled Push', muscleGroup: 'cardio', equipment: 'machine',
+    difficulty: 'intermediate', description: 'Loaded sled push for conditioning and strength.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['shoulders', 'core'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_distance',
+  },
+  {
+    id: 212, name: 'Sled Pull', muscleGroup: 'cardio', equipment: 'machine',
+    difficulty: 'intermediate', description: 'Loaded sled pull for conditioning.', primaryMuscles: ['back'],
+    secondaryMuscles: ['legs'], tier: 3, movementPattern: 'pull', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_distance',
+  },
+  {
+    id: 213, name: 'Battle Ropes', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'beginner', description: 'Battle rope conditioning for upper body and core.', primaryMuscles: ['shoulders'],
+    secondaryMuscles: ['core', 'arms'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: false, isWeightedBodyweight: false, trackingType: 'cardio_time',
+  },
+  {
+    id: 214, name: 'Bear Crawls', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'beginner', description: 'Quadrupedal crawl for core stability and conditioning.', primaryMuscles: ['core'],
+    secondaryMuscles: ['shoulders', 'legs'], tier: 3, movementPattern: 'carry', explosive: false,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'cardio_distance',
+  },
+  {
+    id: 215, name: 'Shuttle Runs', muscleGroup: 'cardio', equipment: 'no equipment',
+    difficulty: 'intermediate', description: 'Short sprint shuttle runs for agility and conditioning.', primaryMuscles: ['legs'],
+    secondaryMuscles: ['core'], tier: 3, movementPattern: 'carry', explosive: true,
+    isBodyweight: true, isWeightedBodyweight: false, trackingType: 'cardio_time_reps',
+  },
 ];
 
 export const muscleGroups = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];

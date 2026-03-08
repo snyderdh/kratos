@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { C, FONTS } from '../theme';
 import { useAuth } from '../context/AuthContext';
+import { useActiveWorkout } from '../context/ActiveWorkoutContext';
 import { supabase } from '../supabase';
 
 // ── Brand / phase constants ────────────────────────────────────────────
@@ -85,6 +87,21 @@ function useIsMobile() {
     return () => window.removeEventListener('resize', h);
   }, []);
   return mobile;
+}
+
+// ── Session map ────────────────────────────────────────────────────────
+// Returns ordered array of non-rest sessions: {sessionNum, weekIdx, dayIdx, day, phase, weekNum}
+function buildSessionMap(cycle) {
+  const sessions = [];
+  let num = 1;
+  (cycle.weeks ?? []).forEach((week, weekIdx) => {
+    (week.days ?? []).forEach((day, dayIdx) => {
+      if (day.type !== 'rest') {
+        sessions.push({ sessionNum: num++, weekIdx, dayIdx, day, phase: week.phase ?? 'foundation', weekNum: weekIdx + 1 });
+      }
+    });
+  });
+  return sessions;
 }
 
 // ── Progress bar ───────────────────────────────────────────────────────
@@ -1112,12 +1129,14 @@ function LogModeContent({ day, cycle, weekIdx, user, logStyle, setLogStyle, onAl
 }
 
 // ── Day modal ──────────────────────────────────────────────────────────
-function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onClose }) {
+function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onClose, sessionMap }) {
   const week = cycle.weeks[weekIdx];
   const day  = week?.days[dayIdx];
   if (!day) return null;
 
-  const { user }  = useAuth();
+  const navigate = useNavigate();
+  const { startWorkout } = useActiveWorkout();
+
   const pm        = PHASE_META[week.phase]   ?? PHASE_META.foundation;
   const meta      = DAY_META[day.type]       ?? DAY_META.rest;
   const isDeload  = week.phase === 'deload';
@@ -1127,9 +1146,37 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
   const isRest    = day.type === 'rest';
   const weekday   = WEEKDAYS[dayIdx] ?? '';
 
-  const [logMode,        setLogMode]        = useState(false);
-  const [logStyle,       setLogStyle]       = useState('one_at_a_time');
-  const [workoutSummary, setWorkoutSummary] = useState(null);
+  function handleStartWorkout() {
+    const sessionEntry = sessionMap?.find(s => s.weekIdx === weekIdx && s.dayIdx === dayIdx);
+    const exercises = (day.exercises ?? []).map(ex => ({
+      uid: crypto.randomUUID(),
+      ex: {
+        id: ex.id ?? null,
+        name: ex.name,
+        muscleGroup: ex.muscleGroup ?? '',
+        equipment: ex.equipment ?? '',
+        trackingType: getTrackingType(ex),
+      },
+      targetSets: ex.sets ?? 3,
+      logData: { sets: [] },
+      activeSets: 0,
+      supersetGroup: null,
+      supersetLabel: null,
+    }));
+    startWorkout({
+      title: `${day.label} · Week ${week.weekNumber}`,
+      source: 'kratos_split',
+      activeExercises: exercises,
+      cycleId: cycle.id,
+      weekNumber: weekIdx + 1,
+      dayType: day.type,
+      weekIdx,
+      dayIdx,
+      sessionNum: sessionEntry?.sessionNum ?? null,
+    });
+    onClose();
+    navigate('/train');
+  }
 
   // Next non-rest day for rest day preview
   let nextDay = null;
@@ -1194,66 +1241,38 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: C.textSecondary, lineHeight: 1, padding: '0 0.25rem', flexShrink: 0 }}>×</button>
           </div>
 
-          {/* Mode tabs — lifting days only */}
-          {isLift && (
-            <div style={{ display: 'flex' }}>
-              {[{ mode: false, label: 'View Routine' }, { mode: true, label: '▶ Log Workout' }].map(({ mode, label }) => (
-                <button
-                  key={String(mode)}
-                  onClick={() => setLogMode(mode)}
-                  style={{
-                    flex: 1, padding: '0.5rem', border: 'none',
-                    borderBottom: `2px solid ${logMode === mode ? TERRA : 'transparent'}`,
-                    backgroundColor: 'transparent',
-                    color: logMode === mode ? TERRA : C.textSecondary,
-                    fontWeight: logMode === mode ? 400 : 300,
-                    fontSize: '0.8rem', cursor: 'pointer',
-                    transition: 'all 0.15s', fontFamily: FONTS.body,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Scrollable content */}
         <div style={{ overflowY: 'auto', padding: '1.125rem 1.25rem', flex: 1 }}>
-          {isLift && logMode
-            ? <LogModeContent
-                key={`log-${weekIdx}-${dayIdx}`}
-                day={day} cycle={cycle} weekIdx={weekIdx} user={user}
-                logStyle={logStyle} setLogStyle={setLogStyle}
-                onAllLogged={setWorkoutSummary}
-              />
-            : isLift
-              ? <LiftingDayContent day={day} phaseMeta={pm} isDeload={isDeload} />
-              : isRecover
-                ? <RecoveryDayContent day={day} />
-                : <RestDayContent nextDay={nextDay} />
+          {isLift
+            ? <LiftingDayContent day={day} phaseMeta={pm} isDeload={isDeload} />
+            : isRecover
+              ? <RecoveryDayContent day={day} />
+              : <RestDayContent nextDay={nextDay} />
           }
         </div>
 
         {/* Footer */}
         <div style={{ padding: '0.75rem 1.25rem', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-          {isLift && logMode ? (
-            workoutSummary ? (
+          {isLift ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <button
-                onClick={() => { if (!isCompleted) onToggleComplete(); onClose(); }}
-                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: 'none', backgroundColor: '#16a34a', color: '#fff', fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s', fontFamily: FONTS.body }}
+                onClick={handleStartWorkout}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: 'none', backgroundColor: TERRA, color: '#fff', fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer', transition: 'opacity 0.15s', fontFamily: FONTS.body }}
+                onMouseOver={(e) => { e.currentTarget.style.opacity = '0.87'; }}
+                onMouseOut={(e) => { e.currentTarget.style.opacity = '1'; }}
               >
-                Complete Workout ✓
+                Start Workout →
               </button>
-            ) : (
               <button
-                onClick={() => setLogMode(false)}
-                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 300, fontSize: '0.875rem', cursor: 'pointer', fontFamily: FONTS.body }}
+                onClick={onToggleComplete}
+                style={{ width: '100%', padding: '0.65rem', borderRadius: '10px', border: `1.5px solid ${isCompleted ? '#16a34a' : C.border}`, backgroundColor: isCompleted ? '#f0fdf4' : 'transparent', color: isCompleted ? '#16a34a' : C.textSecondary, fontWeight: 300, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s', fontFamily: FONTS.body }}
               >
-                ← Back to View
+                {isCompleted ? '✓ Marked Complete' : 'Mark as Complete'}
               </button>
-            )
-          ) : (
+            </div>
+          ) : !isRest ? (
             <button
               onClick={onToggleComplete}
               style={{
@@ -1267,6 +1286,13 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
             >
               {isCompleted ? '✓ Marked Complete' : 'Mark as Complete'}
             </button>
+          ) : (
+            <button
+              onClick={onClose}
+              style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 300, fontSize: '0.875rem', cursor: 'pointer', fontFamily: FONTS.body }}
+            >
+              Close
+            </button>
           )}
         </div>
       </div>
@@ -1276,14 +1302,21 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
 
 // ── Main export ────────────────────────────────────────────────────────
 export default function KratosSplitViewer({ cycle, initialDay }) {
-  const storageKey  = `kratos_complete_${cycle.id}`;
   const isMobile    = useIsMobile();
   const weekRowRefs = useRef({});
 
-  const [completedDays, setCompletedDays] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(storageKey) || '{}'); }
-    catch { return {}; }
-  });
+  // Session-based completion tracking (Supabase-backed)
+  const sessionMap = useMemo(() => buildSessionMap(cycle), [cycle]);
+  const [completedSessions, setCompletedSessions] = useState(
+    () => new Set(cycle.completed_sessions ?? [])
+  );
+  const completedDays = useMemo(() => {
+    const result = {};
+    sessionMap.forEach(({ sessionNum, weekIdx, dayIdx }) => {
+      if (completedSessions.has(sessionNum)) result[`${weekIdx}:${dayIdx}`] = true;
+    });
+    return result;
+  }, [sessionMap, completedSessions]);
 
   const [modalWeekIdx, setModalWeekIdx] = useState(initialDay?.weekIdx ?? null);
   const [modalDayIdx,  setModalDayIdx]  = useState(initialDay?.dayIdx  ?? null);
@@ -1315,11 +1348,13 @@ export default function KratosSplitViewer({ cycle, initialDay }) {
 
   function handleToggleComplete() {
     if (modalWeekIdx === null) return;
-    const key = `${modalWeekIdx}:${modalDayIdx}`;
-    setCompletedDays((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      if (!next[key]) delete next[key];
-      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+    const session = sessionMap.find(s => s.weekIdx === modalWeekIdx && s.dayIdx === modalDayIdx);
+    if (!session) return; // rest day — no session to track
+    setCompletedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(session.sessionNum)) next.delete(session.sessionNum);
+      else next.add(session.sessionNum);
+      supabase.from('cycles').update({ completed_sessions: [...next] }).eq('id', cycle.id).then(() => {});
       return next;
     });
   }
@@ -1347,6 +1382,7 @@ export default function KratosSplitViewer({ cycle, initialDay }) {
           completedDays={completedDays}
           onToggleComplete={handleToggleComplete}
           onClose={handleCloseModal}
+          sessionMap={sessionMap}
         />
       )}
     </div>

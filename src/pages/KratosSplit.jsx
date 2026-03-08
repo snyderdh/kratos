@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { buildDayPools, generateKratosSplitDay } from '../utils/kratosSplitPeriodization';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { C, FONTS, card, btnPrimary, inputBase, labelBase } from '../theme';
+import SavedCycles from './SavedCycles';
+import CycleGenerator from './CycleGenerator';
 
 // ── Brand colors ──────────────────────────────────────────────────────
 const TERRA = '#C2622A';
@@ -168,10 +170,20 @@ function pill(active) {
   };
 }
 
+const TERRA_MAIN = '#C2622A';
+
 // ── Main component ────────────────────────────────────────────────────
 export default function KratosSplit() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Tab state — can be initialized from navigation state
+  const [kratosTab, setKratosTab] = useState(() => location.state?.tab ?? 'split');
+
+  useEffect(() => {
+    if (location.state?.tab) setKratosTab(location.state.tab);
+  }, [location.state?.tab]);
 
   const [selectedDay, setSelectedDay] = useState(null);
 
@@ -297,7 +309,7 @@ export default function KratosSplit() {
       setError('Failed to save: ' + dbErr.message);
     } else {
       setSaveSuccess(true);
-      setTimeout(() => navigate('/saved-cycles'), 2200);
+      setTimeout(() => setKratosTab('cycles'), 2200);
     }
   }
 
@@ -356,7 +368,39 @@ export default function KratosSplit() {
   const selInfo = selectedDay !== null ? DAY_DETAILS[selectedDay]   : null;
 
   return (
-    <div style={{ maxWidth: '860px', margin: '0 auto', paddingBottom: '4rem' }}>
+    <div>
+      {/* ── Tab bar ────────────────────────────────────────────────────── */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surface, position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: '860px', margin: '0 auto', padding: '0 1rem', display: 'flex' }}>
+          {[['split', 'The Split'], ['cycles', 'My Cycles'], ['generate', 'Custom Cycle']].map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setKratosTab(val)}
+              style={{
+                padding: '0.875rem 1.25rem', border: 'none',
+                borderBottom: `2px solid ${kratosTab === val ? TERRA_MAIN : 'transparent'}`,
+                backgroundColor: 'transparent',
+                color: kratosTab === val ? TERRA_MAIN : C.textSecondary,
+                fontWeight: kratosTab === val ? 400 : 300,
+                fontSize: '0.875rem', cursor: 'pointer',
+                transition: 'all 0.15s', fontFamily: FONTS.body,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── My Cycles tab ──────────────────────────────────────────────── */}
+      {kratosTab === 'cycles' && <SavedCycles />}
+
+      {/* ── Custom Cycle tab ───────────────────────────────────────────── */}
+      {kratosTab === 'generate' && <CycleGenerator />}
+
+      {/* ── The Split tab ──────────────────────────────────────────────── */}
+      {kratosTab === 'split' && (
+      <div style={{ maxWidth: '860px', margin: '0 auto', paddingBottom: '4rem' }}>
 
       {/* ── A: Manifesto Hero ─────────────────────────────────────────── */}
       <div style={{
@@ -714,6 +758,8 @@ export default function KratosSplit() {
           </p>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }

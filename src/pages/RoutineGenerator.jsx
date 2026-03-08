@@ -36,6 +36,20 @@ const MUSCLES = [
   { value: 'core',      label: 'Core' },
 ];
 
+// Quick-select combos that expand to base muscle groups at generation time
+const MUSCLE_COMBOS = [
+  { value: 'upper',  label: 'Upper Body', expands: ['chest', 'back', 'shoulders', 'arms'] },
+  { value: 'lower',  label: 'Lower Body', expands: ['legs'] },
+  { value: 'push',   label: 'Push',       expands: ['chest', 'shoulders'] },
+  { value: 'pull',   label: 'Pull',       expands: ['back', 'arms'] },
+  { value: 'sharms', label: 'Sho + Arms', expands: ['shoulders', 'arms'] },
+];
+
+function expandMuscleGroups(groups) {
+  const comboMap = MUSCLE_COMBOS.reduce((acc, c) => ({ ...acc, [c.value]: c.expands }), {});
+  return [...new Set(groups.flatMap((m) => comboMap[m] ?? [m]))];
+}
+
 const TIME_LIMITS = [
   { value: 'no-limit', label: 'No limit' },
   { value: '30',       label: '30 min' },
@@ -287,8 +301,10 @@ export default function RoutineGenerator() {
       recovery = await loadRecovery();
     }
 
+    const expandedMuscles = expandMuscleGroups(muscleGroups);
+
     const conflictMuscles = !override && recovery
-      ? (recovery.musclesInRecovery || []).filter((m) => muscleGroups.includes(m))
+      ? (recovery.musclesInRecovery || []).filter((m) => expandedMuscles.includes(m))
       : [];
 
     if (conflictMuscles.length > 0) {
@@ -307,7 +323,7 @@ export default function RoutineGenerator() {
     const result = generateAdvancedRoutine({
       goals,
       equipment,
-      muscleGroups,
+      muscleGroups: expandedMuscles,
       philosophy,
       durationLimit,
       excludedExerciseIds: excludedIds,
@@ -373,13 +389,25 @@ export default function RoutineGenerator() {
     localStorage.setItem('kratos-saved-routines', JSON.stringify([entry, ...saved]));
 
     if (user) {
-      const { error: dbErr } = await supabase.from('routines').insert({
+      const { data: dbData, error: dbErr } = await supabase.from('routines').insert({
         user_id: user.id,
         title: `${routine.blendLabel} Routine`,
         exercises: cleanExercises,
         is_public: sharePublic || false,
-      });
-      if (dbErr) console.error('Failed to save to Supabase:', dbErr);
+      }).select('id').single();
+      if (dbErr) {
+        console.error('Failed to save to Supabase:', dbErr);
+      } else if (dbData) {
+        try {
+          const stored = JSON.parse(localStorage.getItem('kratos-saved-routines') || '[]');
+          const idx = stored.findIndex((r) => r.id === entry.id);
+          if (idx >= 0) {
+            stored[idx].supabaseId = dbData.id;
+            stored[idx].isPublic = sharePublic;
+            localStorage.setItem('kratos-saved-routines', JSON.stringify(stored));
+          }
+        } catch {}
+      }
     }
 
     setSaveSuccess(true);
@@ -760,12 +788,39 @@ export default function RoutineGenerator() {
           {/* Target Muscle Groups */}
           <section style={{ marginBottom: '1.75rem' }}>
             <h2 style={sectionLabel}>Target Muscle Groups</h2>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '0.5rem' }}>
               {MUSCLES.map((m) => {
                 const active = muscleGroups.includes(m.value);
                 return (
                   <button key={m.value} onClick={() => toggleMuscle(m.value)} style={{ padding: '0.45rem 1rem', borderRadius: '20px', border: `1px solid ${active ? accent : C.border}`, backgroundColor: active ? C.accentMuted : C.bg, color: active ? accent : C.textSecondary, fontWeight: active ? 400 : 300, fontSize: '0.875rem', cursor: 'pointer', transition: 'all 0.15s' }}>
                     {m.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: '0.6rem', fontWeight: 400, color: C.textSecondary, textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0.5rem 0 0.4rem' }}>
+              Quick select
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {MUSCLE_COMBOS.map((combo) => {
+                const isActive = combo.expands.length > 0 && combo.expands.every((m) => muscleGroups.includes(m)) && muscleGroups.length === combo.expands.length;
+                return (
+                  <button
+                    key={combo.value}
+                    onClick={() => setMuscleGroups(combo.expands)}
+                    style={{
+                      padding: '0.35rem 0.85rem',
+                      borderRadius: '20px',
+                      border: `1px solid ${isActive ? accent : C.border}`,
+                      backgroundColor: isActive ? C.accentMuted : C.bg,
+                      color: isActive ? accent : C.textSecondary,
+                      fontWeight: isActive ? 400 : 300,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {combo.label}
                   </button>
                 );
               })}
@@ -803,7 +858,7 @@ export default function RoutineGenerator() {
             }}>
               Philosophy: <span style={{ fontWeight: 400, textTransform: 'capitalize' }}>
                 {profile.training_philosophy.replace('_', ' ')}
-              </span> · change in <a href="/profile" style={{ color: accent }}>Profile</a>
+              </span> · change in <a href="/settings" style={{ color: accent }}>Settings</a>
             </div>
           )}
 

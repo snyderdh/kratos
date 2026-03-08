@@ -2,24 +2,11 @@ import { NavLink, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  Home, Dumbbell, Calendar, BookOpen,
-  Bookmark, Archive, Users, Trophy, Menu, X, UserCircle, Zap,
+  Home, Dumbbell, Users, Menu, X, Zap, ClipboardList, Settings,
 } from 'lucide-react';
 import { C, FONTS } from '../theme';
 
 export const SIDEBAR_WIDTH = 240;
-
-const navLinks = [
-  { to: '/',            label: 'Home',              icon: Home,        end: true },
-  { to: '/generate',    label: 'Routine Generator',  icon: Dumbbell },
-  { to: '/cycle',       label: 'Cycle Generator',    icon: Calendar },
-  { to: '/library',     label: 'Exercise Library',   icon: BookOpen },
-  { to: '/saved',       label: 'Saved Routines',     icon: Bookmark },
-  { to: '/saved-cycles',label: 'Saved Cycles',       icon: Archive },
-  { to: '/community',   label: 'Community',          icon: Users },
-  { to: '/athletes',    label: 'Athletes',           icon: Trophy },
-  { to: '/profile',     label: 'Profile',            icon: UserCircle },
-];
 
 const TERRA = '#C2622A';
 
@@ -69,10 +56,11 @@ function SidebarContent({ onClose }) {
       {/* Nav links */}
       <nav style={{ flex: 1, padding: '0 0.625rem', overflowY: 'auto' }}>
         <NavItem to="/" label="Home" icon={Home} end onClick={onClose} />
+        <NavItem to="/train" label="Train" icon={Dumbbell} onClick={onClose} />
 
         {/* Kratos Split — featured item */}
         <NavLink
-          to="/kratos-split"
+          to="/kratos"
           onClick={onClose}
           className={({ isActive }) => ['sidebar-nav-item', isActive ? 'sidebar-nav-item--active' : ''].join(' ')}
           style={({ isActive }) => ({
@@ -84,25 +72,29 @@ function SidebarContent({ onClose }) {
             <>
               <Zap size={17} strokeWidth={isActive ? 2 : 1.75} color={TERRA} style={{ flexShrink: 0 }} />
               <span style={{ flex: 1, color: TERRA, fontWeight: 400 }}>Kratos Split</span>
-              <span style={{
-                fontSize: '0.6rem', fontWeight: 500, color: '#fff',
-                backgroundColor: TERRA, borderRadius: '999px',
-                padding: '0.1rem 0.4rem', letterSpacing: '0.05em',
-                textTransform: 'uppercase', lineHeight: 1.4,
-              }}>
-                NEW
-              </span>
             </>
           )}
         </NavLink>
 
-        {navLinks.slice(1).map((link) => (
-          <NavItem key={link.to} {...link} onClick={onClose} />
-        ))}
+        <NavItem to="/log" label="Workout Log" icon={ClipboardList} onClick={onClose} />
+        <NavItem to="/community" label="Community" icon={Users} onClick={onClose} />
       </nav>
 
       {/* User footer */}
       <div style={{ padding: '0.875rem 0.875rem 1rem', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <NavLink
+          to="/settings"
+          onClick={onClose}
+          className={({ isActive }) => ['sidebar-nav-item', isActive ? 'sidebar-nav-item--active' : ''].join(' ')}
+          style={{ marginBottom: '0.75rem' }}
+        >
+          {({ isActive }) => (
+            <>
+              <Settings size={18} strokeWidth={isActive ? 2 : 1.5} color={isActive ? C.accent : C.textSecondary} style={{ flexShrink: 0 }} />
+              <span>Settings</span>
+            </>
+          )}
+        </NavLink>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.625rem' }}>
           {profile?.avatar_url ? (
             <img

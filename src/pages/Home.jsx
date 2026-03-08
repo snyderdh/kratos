@@ -308,7 +308,15 @@ export default function Home() {
           )}
 
           {/* ── Cycle Progress ────────────────────────────────────────── */}
-          <div style={{ ...card, padding: '1.375rem 1.75rem' }}>
+          <div
+            onClick={() => navigate('/saved-cycles', { state: { autoLoad: activeCycle.id } })}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/saved-cycles', { state: { autoLoad: activeCycle.id } }); }}
+            onMouseOver={(e) => { e.currentTarget.style.borderColor = TERRA; }}
+            onMouseOut={(e)  => { e.currentTarget.style.borderColor = C.border; }}
+            style={{ ...card, padding: '1.375rem 1.75rem', cursor: 'pointer', transition: 'border-color 0.15s' }}
+          >
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>

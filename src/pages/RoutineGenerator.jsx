@@ -60,6 +60,7 @@ const TIME_LIMITS = [
 ];
 
 const PHASE_COLORS = {
+  warmup:      { border: '#d97706', bg: '#fffbeb', text: '#d97706' },
   primary:     { border: '#C2622A', bg: '#F5EDE6', text: '#C2622A' },
   secondary:   { border: '#2563eb', bg: '#eff6ff', text: '#2563eb' },
   accessory:   { border: '#16a34a', bg: '#f0fdf4', text: '#16a34a' },

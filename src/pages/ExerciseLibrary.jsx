@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { exercises, muscleGroups, equipmentOptions, difficultyLevels } from '../data/exercises';
 import { C, FONTS, card, inputBase } from '../theme';
+import ExerciseInfoModal from '../components/ExerciseInfoModal';
 
 const difficultyBadge = {
   beginner:     { bg: '#EDF2EE', text: '#4A7C59' },
@@ -22,6 +23,7 @@ export default function ExerciseLibrary() {
   const [filterMuscle, setFilterMuscle] = useState('all');
   const [filterEquip, setFilterEquip] = useState('all');
   const [filterDiff, setFilterDiff] = useState('all');
+  const [selectedEx, setSelectedEx] = useState(null);
 
   const filtered = exercises.filter((ex) => {
     const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -148,6 +150,7 @@ export default function ExerciseLibrary() {
             return (
               <div
                 key={ex.id}
+                onClick={() => setSelectedEx(ex.name)}
                 style={{
                   ...card,
                   borderLeft: `3px solid ${mColor}`,
@@ -156,14 +159,16 @@ export default function ExerciseLibrary() {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.5rem',
-                  transition: 'transform 0.15s',
-                  cursor: 'default',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                  cursor: 'pointer',
                 }}
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
                 }}
                 onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '';
                 }}
               >
                 <h3 style={{ fontWeight: 400, color: C.text, fontSize: '0.95rem', lineHeight: 1.3, fontFamily: FONTS.heading }}>
@@ -199,6 +204,13 @@ export default function ExerciseLibrary() {
             );
           })}
         </div>
+      )}
+
+      {selectedEx && (
+        <ExerciseInfoModal
+          exerciseName={selectedEx}
+          onClose={() => setSelectedEx(null)}
+        />
       )}
     </div>
   );

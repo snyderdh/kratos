@@ -343,7 +343,26 @@ function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSave
   }, [suggestion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function updateRow(i, field, val) {
-    setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+    setRows((prev) => {
+      // Determine which fields autofill from Set 1 (skip RPE — it's per-set)
+      const autofillableFields =
+        tt === 'reps' || tt === 'weighted_bodyweight'                    ? ['weight', 'reps'] :
+        tt === 'time' || tt === 'cardio_time' ||
+        tt === 'cardio_time_calories' || tt === 'cardio_time_reps'       ? ['duration']       :
+        tt === 'bodyweight'                                               ? ['reps']           :
+        tt === 'cardio_distance'                                          ? ['distance']       :
+        tt === 'cardio_distance_time'                                     ? ['distance', 'duration'] :
+                                                                            ['weight', 'reps'];
+      const shouldAutofill = new Set(autofillableFields);
+      return prev.map((r, idx) => {
+        if (idx === i) return { ...r, [field]: val, ...(i > 0 ? { _autofilled: false } : {}) };
+        // Propagate Set 1 changes to empty or previously-autofilled rows
+        if (i === 0 && shouldAutofill.has(field) && idx > 0 && (!r[field] || r[field] === '' || r._autofilled)) {
+          return { ...r, [field]: val, _autofilled: val !== '' };
+        }
+        return r;
+      });
+    });
     setError('');
   }
 
@@ -440,19 +459,26 @@ function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSave
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem' }}>
             {rows.map((row, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '0.3rem', alignItems: 'center' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 500, color: TERRA, textAlign: 'center' }}>{i + 1}</div>
-                {cols.map(({ field, mode, ph }) => (
-                  <input
-                    key={field}
-                    type="text"
-                    inputMode={mode}
-                    value={row[field] ?? ''}
-                    onChange={(e) => updateRow(i, field, e.target.value)}
-                    placeholder={ph}
-                    style={inputStyle}
-                  />
-                ))}
+              <div key={i}>
+                <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '0.3rem', alignItems: 'center' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 500, color: TERRA, textAlign: 'center' }}>{i + 1}</div>
+                  {cols.map(({ field, mode, ph }) => (
+                    <input
+                      key={field}
+                      type="text"
+                      inputMode={mode}
+                      value={row[field] ?? ''}
+                      onChange={(e) => updateRow(i, field, e.target.value)}
+                      placeholder={ph}
+                      style={{ ...inputStyle, borderColor: row._autofilled ? '#93c5fd' : C.border }}
+                    />
+                  ))}
+                </div>
+                {row._autofilled && (
+                  <div style={{ fontSize: '0.58rem', color: '#93c5fd', marginLeft: '36px', marginTop: '0.1rem', fontStyle: 'italic' }}>
+                    Autofilled from Set 1 — edit to override
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -485,7 +511,7 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
   const { uid, ex, targetSets, logData, activeSets } = item;
   const tt        = getTrackingType(ex);
   const savedSets = logData.sets ?? [];
-  const [logStyle, setLogStyle] = useState('one_at_a_time');
+  const [logStyle, setLogStyle] = useState('all_at_once');
   const [suggestion, setSuggestion] = useState(null);
   const [showSupersetPanel, setShowSupersetPanel] = useState(false);
   const [showSwapPanel, setShowSwapPanel] = useState(false);

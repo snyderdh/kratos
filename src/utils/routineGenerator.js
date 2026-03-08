@@ -38,6 +38,17 @@ const mobilityExercises = [
   { id: 'mob-8', name: 'Doorway Pec Stretch',      muscleGroup: 'chest',     equipment: 'bodyweight', difficulty: 'beginner' },
 ];
 
+// ── General Warm-Up exercise pool ─────────────────────────────────────────
+const WARMUP_POOL = [
+  { id: 'wu-1', name: 'Jump Rope',             equipment: 'bodyweight',  muscleGroup: 'cardio', difficulty: 'beginner', description: '3–5 min easy pace — elevates heart rate, warms the calves, shoulders, and coordination.' },
+  { id: 'wu-2', name: 'Jumping Jacks',          equipment: 'bodyweight',  muscleGroup: 'cardio', difficulty: 'beginner', description: '3 min continuous — full-body activation to raise core temperature before loading.' },
+  { id: 'wu-3', name: 'Light Kettlebell Swing', equipment: 'kettlebells', muscleGroup: 'cardio', difficulty: 'beginner', description: '2×10 at low load — activates posterior chain and primes the hip hinge pattern for the session.' },
+  { id: 'wu-4', name: 'Light Dumbbell Circuit', equipment: 'dumbbells',   muscleGroup: 'cardio', difficulty: 'beginner', description: '2×10 goblet squat to press — warms up multiple movement planes with minimal fatigue.' },
+  { id: 'wu-5', name: 'Machine Warm-Up',        equipment: 'machines',    muscleGroup: 'cardio', difficulty: 'beginner', description: '2×15 at 20% working load — primes target muscles and joints before heavy loading.' },
+  { id: 'wu-6', name: 'Band Pull-Aparts',       equipment: 'bands',       muscleGroup: 'cardio', difficulty: 'beginner', description: '2×15 — activates rotator cuff and mid-back stabilizers before any pressing or pulling.' },
+  { id: 'wu-7', name: 'Kettlebell Halo',        equipment: 'kettlebells', muscleGroup: 'cardio', difficulty: 'beginner', description: '2×8 each direction — mobilizes the thoracic spine and shoulders before overhead work.' },
+];
+
 // ── Push / pull classification for exercise alternation ───────────────────
 const PUSH_GROUPS = ['chest', 'shoulders'];
 const PULL_GROUPS = ['back', 'arms'];
@@ -483,6 +494,7 @@ export const PHILOSOPHY_CONFIG = {
 };
 
 const PHASE_TIME_ESTIMATES = {
+  warmup: 7,
   primary: 20,
   secondary_per_ex: 13,
   accessory_straight: 7,
@@ -503,31 +515,74 @@ const MOVEMENT_CUES = {
   carry:     'Shoulders packed, tall posture, rhythmic steady steps',
 };
 
-function buildAdvancedExplanation(goals, philosophy, phases, blendLabel) {
+function buildAdvancedExplanation(goals, philosophy, phases, blendLabel, muscleGroups, durationLimit, setReductionNote) {
   const cfg = PHILOSOPHY_CONFIG[philosophy] || PHILOSOPHY_CONFIG.general_fitness;
+  const blendCfg = getBlendConfig(goals);
+
   const philosophyLabels = {
-    powerlifting:           'powerlifting',
-    bodybuilding:           'bodybuilding',
-    athletic_performance:   'athletic performance',
-    general_fitness:        'general fitness',
-    endurance_conditioning: 'endurance conditioning',
+    powerlifting:           'Powerlifting',
+    bodybuilding:           'Bodybuilding',
+    athletic_performance:   'Athletic Performance',
+    general_fitness:        'General Fitness',
+    endurance_conditioning: 'Endurance Conditioning',
   };
-  const philLabel = philosophyLabels[philosophy] || 'general fitness';
-  const sets = cfg.sets.length > 1 && cfg.sets[0] !== cfg.sets[1]
-    ? `${cfg.sets[0]}–${cfg.sets[1]}`
-    : `${cfg.sets[0]}`;
-  const reps = `${cfg.reps[0]}–${cfg.reps[1]}`;
-  const phaseCount = phases.length;
+  const philLabel = philosophyLabels[philosophy] || 'General Fitness';
 
-  const sentence1 = `This ${philLabel} routine is structured across ${phaseCount} progressive phases — a heavy compound opener, supporting compound work, targeted isolation, and a core stability finisher.`;
-  const sentence2 = `Following ${philLabel} principles, working sets are prescribed at ${sets} × ${reps} reps targeting RPE ${cfg.rpe}, calibrating volume and intensity for consistent progressive overload.`;
-  const sentence3 = `Exercise order is deliberate: primary compounds are placed first when your nervous system is freshest and force output is highest, followed by accessory work at reduced load to maximize metabolic stress without compromising technique on the main lifts.`;
-  const hasSuperset = cfg.setStructure === 'superset';
-  const sentence4 = hasSuperset
-    ? 'Accessory exercises are paired as A1/A2 supersets to increase training density, time under tension, and caloric expenditure — proven techniques for hypertrophy and conditioning.'
-    : 'Core work is placed last to avoid pre-fatiguing the stabilizers required for safe, powerful execution of the compound movements earlier in the session.';
+  // Rep scheme from blend config (reflects multi-goal compromise accurately)
+  const blendReps = blendCfg.reps;
+  const blendRest = blendCfg.restSeconds;
+  const restLabel = blendRest >= 120 ? `${Math.round(blendRest / 60)} min` : `${blendRest}s`;
 
-  return [sentence1, sentence2, sentence3, sentence4].join(' ');
+  // Goals
+  const mainGoals = goals.filter((g) => g !== 'mobility');
+  const hasMobility = goals.includes('mobility');
+  const primaryGoal = mainGoals[0] || 'hypertrophy';
+  const goalWords = { strength: 'maximal strength', hypertrophy: 'muscle hypertrophy', endurance: 'muscular endurance', power: 'explosive power' };
+  const goalDesc = mainGoals.map((g) => goalWords[g] || g).join(' and ');
+
+  // Muscle group description
+  const displayMuscles = muscleGroups || [];
+  let muscleDesc;
+  if (displayMuscles.length === 0)      muscleDesc = 'full body';
+  else if (displayMuscles.length === 1) muscleDesc = displayMuscles[0];
+  else if (displayMuscles.length === 2) muscleDesc = `${displayMuscles[0]} and ${displayMuscles[1]}`;
+  else muscleDesc = `${displayMuscles.slice(0, -1).join(', ')}, and ${displayMuscles[displayMuscles.length - 1]}`;
+
+  // Science note keyed to primary goal with exact rep/rest data
+  const scienceNotes = {
+    strength:    `Working in the ${blendReps} rep range with ${restLabel} rest allows full phosphocreatine replenishment between sets, maximising force output and driving myofibrillar protein synthesis for long-term strength gains.`,
+    hypertrophy: `The ${blendReps} rep range with ${restLabel} rest optimally balances mechanical tension and metabolic stress — the two primary drivers of muscle hypertrophy confirmed across decades of exercise science research.`,
+    endurance:   `High-rep sets at ${blendReps} reps with short ${restLabel} rest shift fiber recruitment toward slow-twitch type I fibers and improve mitochondrial density, building the capacity for sustained muscular output over time.`,
+    power:       `Explosive intent in the ${blendReps} rep range with ${restLabel} rest preserves neuromuscular quality across sets, training fast-twitch type IIx fiber recruitment and rate of force development — the neuromuscular foundation of athletic power.`,
+  };
+  const scienceNote = scienceNotes[primaryGoal] || scienceNotes.hypertrophy;
+
+  // Philosophy influence on session design
+  const philosophyNotes = {
+    powerlifting:           `Powerlifting principles shape the loading: pyramid structure on the primary compound, extended ${restLabel} rest to preserve neural drive, and RPE ${cfg.rpe} as your intensity ceiling to manage cumulative fatigue across the session.`,
+    bodybuilding:           `Bodybuilding principles maximise hypertrophic volume: superset pairings in the accessory block, controlled eccentric tempos, and peak-contraction focus drive metabolic stress alongside mechanical tension for maximal muscle stimulus.`,
+    athletic_performance:   `Athletic performance principles emphasise neuromuscular transfer: compound-dominant exercise selection, explosive intent on primary lifts, and moderate ${restLabel} rest build force output that directly carries over to sport.`,
+    general_fitness:        `General fitness principles balance efficiency and long-term adherence: accessible exercise selection, straight-set structure, and moderate intensity build sustainable training habits that simultaneously improve strength, health, and movement quality.`,
+    endurance_conditioning: `Endurance conditioning principles maximise work capacity: higher-rep ranges, superset pairings, and compressed rest create cardiovascular demand alongside muscular adaptations for peak caloric expenditure and conditioning.`,
+  };
+  const philNote = philosophyNotes[philosophy] || philosophyNotes.general_fitness;
+
+  // Phase overview
+  const liftingPhaseCount = phases.filter((p) => p.phaseId !== 'warmup').length;
+  const s1 = `This ${philLabel} session targets ${goalDesc} across ${muscleDesc}, structured in ${liftingPhaseCount} progressive lifting phases following a ${PHASE_TIME_ESTIMATES.warmup}-minute general warm-up.`;
+
+  // Optional modifiers
+  const mobilityNote = hasMobility
+    ? ' Mobility exercises are woven through the warm-up and accessory phases to improve joint range of motion under load, reducing injury risk and improving force transfer on the primary compounds.'
+    : '';
+  const blendNote = mainGoals.length > 1
+    ? ` With ${mainGoals.length} concurrent goals (${blendLabel}), rep ranges are intentionally blended — a deliberate compromise that builds multiple physical qualities simultaneously at the cost of slightly less peak development in any single domain compared to a single-goal focus.`
+    : '';
+  const durationNote = setReductionNote
+    ? ` Volume was scaled to fit your ${durationLimit}-minute session — prioritise completing the primary and secondary phases; accessory work is the first to trim if time runs short.`
+    : '';
+
+  return s1 + ' ' + scienceNote + ' ' + philNote + mobilityNote + blendNote + durationNote;
 }
 
 export function generateAdvancedRoutine({
@@ -738,6 +793,19 @@ export function generateAdvancedRoutine({
     phase6Exercises.push({ ...ex, phaseId: 'core', sets: 3, reps: '15-20', rest: '60s', targetRPE: 6.5, setStructure: 'straight', movementCue: MOVEMENT_CUES.isometric });
   }
 
+  // ── Phase 1: General Warm-Up ───────────────────────────────────────────
+  const warmupBase = WARMUP_POOL.find((w) => equipment.includes(w.equipment)) ?? WARMUP_POOL[1];
+  const warmupExercises = [{
+    ...warmupBase,
+    phaseId: 'warmup',
+    sets: 1,
+    reps: '5–8 min',
+    rest: '0s',
+    targetRPE: null,
+    setStructure: 'straight',
+    movementCue: 'Steady pace, breathe through your nose, target ~50–60% max heart rate before the first working set.',
+  }];
+
   // ── Time Estimation ────────────────────────────────────────────────────
   function estimateTime(p2, p3, p4, hasP5, p6) {
     const pairs = useSupersets ? Math.floor(p4.length / 2) : 0;
@@ -783,11 +851,20 @@ export function generateAdvancedRoutine({
 
   const finalPhase5 = hasPhase5 ? phase5Exercise : null;
   const totalEstimatedMin = Math.round(
+    PHASE_TIME_ESTIMATES.warmup +
     estimateTime(phase2Exercises, phase3Exercises, currentPhase4, !!finalPhase5, phase6Exercises)
   );
 
   // ── Build Phases Array ─────────────────────────────────────────────────
-  const phases = [];
+  const phases = [
+    {
+      phaseId: 'warmup',
+      phaseLabel: 'Phase 1 — General Warm-Up',
+      phaseShort: 'Warm-Up',
+      description: '1 exercise · 5–8 min · Elevate heart rate before loading',
+      estimatedMin: PHASE_TIME_ESTIMATES.warmup,
+    },
+  ];
   if (phase2Exercises.length > 0) {
     phases.push({
       phaseId: 'primary',
@@ -838,6 +915,7 @@ export function generateAdvancedRoutine({
 
   // ── Build Flat Exercises Array ─────────────────────────────────────────
   const allExercises = [
+    ...warmupExercises,
     ...phase2Exercises,
     ...phase3Exercises,
     ...currentPhase4,
@@ -850,7 +928,7 @@ export function generateAdvancedRoutine({
     philosophy,
     blendLabel,
     blendDescription,
-    explanation: buildAdvancedExplanation(goals, philosophy, phases, blendLabel),
+    explanation: buildAdvancedExplanation(goals, philosophy, phases, blendLabel, targetMuscles, durationLimit, setReductionNote),
     phases,
     exercises: allExercises,
     supplementalIds: currentPhase4.map((ex) => ex.id).concat(finalPhase5 ? [finalPhase5.id] : []),

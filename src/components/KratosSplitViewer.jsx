@@ -1224,7 +1224,7 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
       sessionNum: sessionEntry?.sessionNum ?? null,
     });
     onClose();
-    navigate('/train');
+    navigate('/active');
   }
 
   // Next non-rest day for rest day preview

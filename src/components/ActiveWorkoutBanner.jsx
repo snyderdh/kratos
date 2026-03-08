@@ -31,14 +31,14 @@ export default function ActiveWorkoutBanner() {
     return () => clearInterval(id);
   }, [isActive, activeWorkout?.startTime]);
 
-  // Don't show on /train — the active workout view is already there
-  if (!isActive || location.pathname === '/train') return null;
+  // Don't show on /active — the active workout view is already there
+  if (!isActive || location.pathname === '/active') return null;
 
   return (
     <>
       <div
         className="active-workout-banner"
-        onClick={() => navigate('/train')}
+        onClick={() => navigate('/active')}
         style={{
           position: 'fixed',
           bottom: 0, left: 0, right: 0,

@@ -5,15 +5,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, Info } from 'lucide-react';
+import { ArrowLeftRight, Info, Pencil } from 'lucide-react';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import { C, FONTS, card } from '../theme';
 import { useAuth } from '../context/AuthContext';
 import { useActiveWorkout } from '../context/ActiveWorkoutContext';
 import { supabase } from '../supabase';
 import { exercises as ALL_EXERCISES } from '../data/exercises';
-import RoutineGenerator from './RoutineGenerator';
-import KratosSplitViewer from '../components/KratosSplitViewer';
 
 const TERRA = '#C2622A';
 const SAGE  = '#6B8F71';
@@ -64,6 +62,19 @@ const SWAP_MUSCLE_GROUPS = {
 };
 
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function savedSetToEditRow(tt, s) {
+  const str = (v) => (v != null ? String(v) : '');
+  if (tt === 'time')               return { duration: str(s.duration_seconds), rpe: str(s.rpe_actual) };
+  if (tt === 'bodyweight')         return { reps: str(s.reps_completed), rpe: str(s.rpe_actual) };
+  if (tt === 'weighted_bodyweight') return { weight: str(s.weight_lbs), reps: str(s.reps_completed), rpe: str(s.rpe_actual) };
+  if (tt === 'cardio_time')        return { duration: str(s.duration_seconds) };
+  if (tt === 'cardio_distance')    return { distance: str(s.distance_meters) };
+  if (tt === 'cardio_distance_time') return { distance: str(s.distance_meters), duration: str(s.duration_seconds) };
+  if (tt === 'cardio_time_calories') return { duration: str(s.duration_seconds), calories: str(s.calories) };
+  if (tt === 'cardio_time_reps')   return { duration: str(s.duration_seconds), reps: str(s.reps_completed) };
+  return { weight: str(s.weight_lbs), reps: str(s.reps_completed), rpe: str(s.rpe_actual) };
+}
 
 // Build ordered session map (non-rest sessions only)
 function buildSessionMap(cycle) {
@@ -154,17 +165,18 @@ function WorkoutHeader({ title, setTitle, startTime, onFinish }) {
 }
 
 // ── OneAtATimeLogger ───────────────────────────────────────────────────
-function OneAtATimeLogger({ tt, targetSets, savedSets, activeSets, suggestion, saving, onCompleteSet, onDeleteSet }) {
+function OneAtATimeLogger({ tt, targetSets, savedSets, activeSets, suggestion, saving, onCompleteSet, onDeleteSet, onEditSet }) {
   const isDone     = activeSets >= targetSets;
   const currentSet = activeSets + 1;
 
-  const [weight,   setWeight]   = useState(() => suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
-  const [reps,     setReps]     = useState('');
-  const [duration, setDuration] = useState('');
-  const [rpe,      setRpe]      = useState('');
-  const [distance, setDistance] = useState('');
-  const [calories, setCalories] = useState('');
-  const [error,    setError]    = useState('');
+  const [weight,         setWeight]         = useState(() => suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
+  const [reps,           setReps]           = useState('');
+  const [duration,       setDuration]       = useState('');
+  const [rpe,            setRpe]            = useState('');
+  const [distance,       setDistance]       = useState('');
+  const [calories,       setCalories]       = useState('');
+  const [error,          setError]          = useState('');
+  const [editingPrevSet, setEditingPrevSet] = useState(null);
 
   useEffect(() => {
     if (suggestion?.suggestWeight && !weight) setWeight(String(suggestion.suggestWeight));
@@ -180,10 +192,40 @@ function OneAtATimeLogger({ tt, targetSets, savedSets, activeSets, suggestion, s
     : tt === 'cardio_time_reps'  ? (duration.trim() !== '' || reps.trim() !== '')
     : reps.trim() !== '';
 
+  function startEditPrev() {
+    const prev = savedSets[savedSets.length - 1];
+    if (!prev) return;
+    const row = savedSetToEditRow(tt, prev);
+    if (row.weight   !== undefined) setWeight(row.weight);
+    if (row.reps     !== undefined) setReps(row.reps);
+    if (row.duration !== undefined) setDuration(row.duration);
+    if (row.rpe      !== undefined) setRpe(row.rpe);
+    if (row.distance !== undefined) setDistance(row.distance);
+    if (row.calories !== undefined) setCalories(row.calories);
+    setEditingPrevSet(prev);
+    setError('');
+  }
+
+  function cancelEdit() {
+    setEditingPrevSet(null);
+    setWeight(suggestion?.suggestWeight ? String(suggestion.suggestWeight) : '');
+    setReps(''); setDuration(''); setRpe(''); setDistance(''); setCalories('');
+    setError('');
+  }
+
   async function handleComplete() {
     if (saving) return;
     if (!hasValues) { setError('Enter at least one value to log this set.'); return; }
     setError('');
+    if (editingPrevSet) {
+      const ok = await onEditSet(editingPrevSet, { weight, reps, duration, rpe, distance, calories });
+      if (ok === false) {
+        setError('Save failed — check your connection.');
+      } else {
+        cancelEdit();
+      }
+      return;
+    }
     const ok = await onCompleteSet(activeSets, { weight, reps, duration, rpe, distance, calories });
     if (ok === false) {
       setError('Save failed — check your connection.');
@@ -250,21 +292,34 @@ function OneAtATimeLogger({ tt, targetSets, savedSets, activeSets, suggestion, s
                 <span style={{ color: TERRA, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
                 {formatSavedSet(s)}
               </span>
-              <button onClick={() => onDeleteSet(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '0.85rem', lineHeight: 1, padding: '0 0.15rem', marginLeft: '0.35rem' }}>×</button>
+              <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center' }}>
+                {i === savedSets.length - 1 && editingPrevSet === null && (
+                  <button onClick={startEditPrev} title="Edit this set" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0 0.15rem', lineHeight: 1, display: 'flex', alignItems: 'center' }}>
+                    <Pencil size={11} strokeWidth={1.75} />
+                  </button>
+                )}
+                <button onClick={() => onDeleteSet(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '0.85rem', lineHeight: 1, padding: '0 0.15rem' }}>×</button>
+              </div>
             </div>
           ))}
         </div>
       )}
-      {isDone ? (
+      {isDone && editingPrevSet === null ? (
         <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 400, padding: '0.3rem 0' }}>
           All {targetSets} sets logged ✓
         </div>
       ) : (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 500, color: TERRA, backgroundColor: '#F5EDE6', padding: '0.12rem 0.45rem', borderRadius: '999px' }}>
-              Set {currentSet} of {targetSets}
-            </span>
+            {editingPrevSet ? (
+              <span style={{ fontSize: '0.68rem', fontWeight: 500, color: '#2563eb', backgroundColor: '#eff6ff', padding: '0.12rem 0.45rem', borderRadius: '999px' }}>
+                Editing Set {editingPrevSet.set_number}
+              </span>
+            ) : (
+              <span style={{ fontSize: '0.68rem', fontWeight: 500, color: TERRA, backgroundColor: '#F5EDE6', padding: '0.12rem 0.45rem', borderRadius: '999px' }}>
+                Set {currentSet} of {targetSets}
+              </span>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${fields.length}, 1fr)`, gap: '0.4rem', marginBottom: '0.5rem' }}>
             {fields.map(({ label, val, set, ph, mode }) => (
@@ -288,19 +343,29 @@ function OneAtATimeLogger({ tt, targetSets, savedSets, activeSets, suggestion, s
               {error}
             </div>
           )}
-          <button
-            onClick={handleComplete}
-            style={{
-              width: '100%', padding: '0.6rem', borderRadius: '8px', border: 'none',
-              backgroundColor: saving ? '#e5e7eb' : hasValues ? TERRA : '#d1d5db',
-              color: saving ? C.textSecondary : hasValues ? '#fff' : '#6b7280',
-              fontWeight: 400, fontSize: '0.875rem',
-              cursor: saving ? 'default' : 'pointer',
-              transition: 'all 0.15s', fontFamily: FONTS.body,
-            }}
-          >
-            {saving ? 'Saving…' : currentSet === targetSets ? 'Complete Last Set ✓' : `Complete Set ${currentSet} →`}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={handleComplete}
+              style={{
+                flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none',
+                backgroundColor: saving ? '#e5e7eb' : hasValues ? (editingPrevSet ? '#2563eb' : TERRA) : '#d1d5db',
+                color: saving ? C.textSecondary : hasValues ? '#fff' : '#6b7280',
+                fontWeight: 400, fontSize: '0.875rem',
+                cursor: saving ? 'default' : 'pointer',
+                transition: 'all 0.15s', fontFamily: FONTS.body,
+              }}
+            >
+              {saving ? 'Saving…' : editingPrevSet ? 'Save Edit ✓' : currentSet === targetSets ? 'Complete Last Set ✓' : `Complete Set ${currentSet} →`}
+            </button>
+            {editingPrevSet && (
+              <button
+                onClick={cancelEdit}
+                style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 400, fontSize: '0.8rem', cursor: 'pointer', fontFamily: FONTS.body }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -308,9 +373,11 @@ function OneAtATimeLogger({ tt, targetSets, savedSets, activeSets, suggestion, s
 }
 
 // ── AllAtOnceLogger ────────────────────────────────────────────────────
-function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSaveAll, onDeleteSet }) {
+function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSaveAll, onDeleteSet, onEditSet }) {
   const isAllSaved = savedSets.length >= targetSets;
   const [error, setError] = useState('');
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editRow, setEditRow] = useState(null);
 
   const makeRow = () => {
     if (tt === 'cardio_time')           return { duration: '' };
@@ -442,13 +509,60 @@ function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSave
       {isAllSaved ? (
         <div>
           {savedSets.map((s, i) => (
-            <div key={i} style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, padding: '0.15rem 0', borderBottom: `1px dashed ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>
-                <span style={{ color: TERRA, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
-                {formatSavedSet(s)}
-              </span>
-              <button onClick={() => onDeleteSet(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '0.85rem', lineHeight: 1, padding: '0 0.15rem', marginLeft: '0.35rem' }}>×</button>
-            </div>
+            editingIdx === i ? (
+              /* Inline edit row */
+              <div key={i} style={{ padding: '0.35rem 0', borderBottom: `1px dashed ${C.border}` }}>
+                <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '0.3rem', alignItems: 'center', marginBottom: '0.3rem' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2563eb', textAlign: 'center' }}>{i + 1}</div>
+                  {cols.map(({ field, mode, ph }) => (
+                    <input
+                      key={field}
+                      type="text"
+                      inputMode={mode}
+                      value={editRow?.[field] ?? ''}
+                      onChange={(e) => setEditRow(prev => ({ ...prev, [field]: e.target.value }))}
+                      placeholder={ph}
+                      style={{ ...inputStyle, borderColor: '#93c5fd' }}
+                    />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', marginLeft: '36px' }}>
+                  <button
+                    onClick={async () => {
+                      if (!editRow || saving) return;
+                      const ok = await onEditSet(s, editRow);
+                      if (ok !== false) { setEditingIdx(null); setEditRow(null); }
+                    }}
+                    style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', border: 'none', backgroundColor: '#2563eb', color: '#fff', fontWeight: 400, fontSize: '0.72rem', cursor: saving ? 'default' : 'pointer', fontFamily: FONTS.body }}
+                  >
+                    {saving ? 'Saving…' : 'Save ✓'}
+                  </button>
+                  <button
+                    onClick={() => { setEditingIdx(null); setEditRow(null); }}
+                    style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontWeight: 400, fontSize: '0.72rem', cursor: 'pointer', fontFamily: FONTS.body }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div key={i} style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, padding: '0.15rem 0', borderBottom: `1px dashed ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  <span style={{ color: TERRA, fontWeight: 500, marginRight: '0.35rem' }}>Set {s.set_number}:</span>
+                  {formatSavedSet(s)}
+                </span>
+                <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center' }}>
+                  <button
+                    onClick={() => { setEditingIdx(i); setEditRow(savedSetToEditRow(tt, s)); }}
+                    title="Edit this set"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, padding: '0 0.15rem', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+                  >
+                    <Pencil size={11} strokeWidth={1.75} />
+                  </button>
+                  <button onClick={() => onDeleteSet(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '0.85rem', lineHeight: 1, padding: '0 0.15rem' }}>×</button>
+                </div>
+              </div>
+            )
           ))}
         </div>
       ) : (
@@ -508,7 +622,7 @@ function AllAtOnceLogger({ tt, targetSets, savedSets, suggestion, saving, onSave
 }
 
 // ── ActiveExerciseCard ─────────────────────────────────────────────────
-function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, savingUid, onSwap, dayType, isKratosSplit }) {
+function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onEditSet, onCreateSuperset, savingUid, onSwap, dayType, isKratosSplit }) {
   const { uid, ex, targetSets, logData, activeSets } = item;
   const tt        = getTrackingType(ex);
   const savedSets = logData.sets ?? [];
@@ -616,6 +730,7 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
             saving={savingUid === uid}
             onCompleteSet={(setIdx, data) => onCompleteSet(uid, setIdx, data)}
             onDeleteSet={(setRecord) => onDeleteSet(uid, setRecord)}
+            onEditSet={(setRecord, data) => onEditSet(uid, setRecord, data)}
           />
         ) : (
           <AllAtOnceLogger
@@ -626,6 +741,7 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
             saving={savingUid === uid}
             onSaveAll={(rows) => onSaveAll(uid, rows)}
             onDeleteSet={(setRecord) => onDeleteSet(uid, setRecord)}
+            onEditSet={(setRecord, data) => onEditSet(uid, setRecord, data)}
           />
         )}
 
@@ -695,7 +811,7 @@ function ActiveExerciseCard({ item, onRemove, onCompleteSet, onSaveAll, onAddSet
 }
 
 // ── AddExercisePanel ───────────────────────────────────────────────────
-function AddExercisePanel({ onAdd, onClose, panelTitle = 'Add Exercise' }) {
+export function AddExercisePanel({ onAdd, onClose, panelTitle = 'Add Exercise' }) {
   const [search, setSearch]             = useState('');
   const [muscleFilter, setMuscleFilter] = useState('All');
   const [customName, setCustomName]     = useState('');
@@ -1185,7 +1301,7 @@ function FinishModal({ activeExercises, startTime, workoutTitle, onSaveExit, onD
 }
 
 // ── SavedRoutinesTab ───────────────────────────────────────────────────
-function SavedRoutinesTab({ onLoadRoutine }) {
+export function SavedRoutinesTab({ onLoadRoutine }) {
   const { user }  = useAuth();
   const [routines, setRoutines] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -1265,7 +1381,7 @@ function SavedRoutinesTab({ onLoadRoutine }) {
 }
 
 // ── BuilderCard ────────────────────────────────────────────────────────
-function BuilderCard({ item, onRemove, onAddSet, onCreateSuperset }) {
+export function BuilderCard({ item, onRemove, onAddSet, onCreateSuperset }) {
   const [showSupersetPanel, setShowSupersetPanel] = useState(false);
 
   return (
@@ -1298,642 +1414,8 @@ function BuilderCard({ item, onRemove, onAddSet, onCreateSuperset }) {
   );
 }
 
-// ── ActiveCycleSection ─────────────────────────────────────────────────
-function ActiveCycleSection({ onStartKratosSession }) {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [cycle, setCycle] = useState(null);
-  const [loadingCycle, setLoadingCycle] = useState(true);
-  const [showFullBlock, setShowFullBlock] = useState(false);
-  const [recoverSheetDay, setRecoverSheetDay] = useState(null);
-  const [markingComplete, setMarkingComplete] = useState(false);
-
-  useEffect(() => {
-    if (!user) { setLoadingCycle(false); return; }
-    supabase
-      .from('cycles')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => { setCycle(data); setLoadingCycle(false); });
-  }, [user]);
-
-  if (loadingCycle) return null;
-
-  const sectionLabel = {
-    fontSize: '0.62rem', fontWeight: 700, color: C.textSecondary,
-    textTransform: 'uppercase', letterSpacing: '0.08em',
-    marginBottom: '0.5rem', fontFamily: FONTS.body,
-  };
-  const cycleLabel = {
-    fontSize: '0.58rem', fontWeight: 700, color: TERRA,
-    textTransform: 'uppercase', letterSpacing: '0.1em',
-    marginBottom: '0.5rem', fontFamily: FONTS.body,
-  };
-
-  if (!cycle) {
-    return (
-      <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1.5rem', borderLeft: `3px solid ${C.border}` }}>
-        <div style={cycleLabel}>Current Cycle</div>
-        <div style={{ fontSize: '0.875rem', color: C.text, fontWeight: 400, marginBottom: '0.625rem' }}>No active Kratos Split cycle</div>
-        <button
-          onClick={() => navigate('/kratos')}
-          style={{ fontSize: '0.8rem', color: TERRA, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: FONTS.body, fontWeight: 400 }}
-        >
-          Start the Kratos Split →
-        </button>
-      </div>
-    );
-  }
-
-  const sessions = buildSessionMap(cycle);
-  const completedSet = new Set(cycle.completed_sessions ?? []);
-  const nextSession = sessions.find(s => !completedSet.has(s.sessionNum)) ?? null;
-
-  // Session-based current week: the week containing the next incomplete session
-  const currentWeekIdx = nextSession?.weekIdx ?? -1;
-
-  // Sessions for current week and the week after
-  const thisWeekSessions = currentWeekIdx >= 0
-    ? sessions.filter(s => s.weekIdx === currentWeekIdx)
-    : [];
-  const nextWeekSessions = currentWeekIdx >= 0
-    ? sessions.filter(s => s.weekIdx === currentWeekIdx + 1)
-    : [];
-
-  function startSession(session) {
-    const d = session.day;
-    if (!['push', 'pull', 'legs'].includes(d.type)) return;
-    const exItems = (d.exercises ?? []).map(ex => ({
-      uid: crypto.randomUUID(),
-      ex: { id: ex.id ?? null, name: ex.name, muscleGroup: ex.muscleGroup ?? '', equipment: ex.equipment ?? '', trackingType: getTrackingType(ex) },
-      targetSets: ex.sets ?? 3, logData: { sets: [] }, activeSets: 0,
-      supersetGroup: null, supersetLabel: null,
-    }));
-    onStartKratosSession({
-      title: `Week ${session.weekNum} · ${cap(d.type)} Day`,
-      source: 'kratos_split', activeExercises: exItems,
-      cycleId: cycle.id, weekNumber: session.weekNum,
-      dayType: d.type, weekIdx: session.weekIdx,
-      dayIdx: session.dayIdx, sessionNum: session.sessionNum,
-    });
-  }
-
-  async function handleMarkComplete(sessionNum) {
-    if (markingComplete) return;
-    setMarkingComplete(true);
-    const prev = new Set(cycle.completed_sessions ?? []);
-    prev.add(sessionNum);
-    const arr = [...prev];
-    await supabase.from('cycles').update({ completed_sessions: arr }).eq('id', cycle.id);
-    setCycle(c => ({ ...c, completed_sessions: arr }));
-    setRecoverSheetDay(null);
-    setMarkingComplete(false);
-  }
-
-  // Render a single session row
-  function renderSessionRow(session) {
-    const isCompleted = completedSet.has(session.sessionNum);
-    const isNext    = nextSession?.sessionNum === session.sessionNum;
-    const isLift    = ['push', 'pull', 'legs'].includes(session.day.type);
-    const isRecover = session.day.type === 'recover';
-    const exCount   = (session.day.exercises ?? []).length;
-    const dotColor  = isRecover ? SAGE : TERRA;
-
-    return (
-      <div
-        key={session.sessionNum}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '0.625rem',
-          padding: '0.525rem 0',
-          borderBottom: `1px solid ${C.border}`,
-          opacity: isCompleted ? 0.45 : 1,
-        }}
-      >
-        {/* Status circle */}
-        <div style={{
-          width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-          border: `1.5px solid ${isCompleted ? '#16a34a' : isNext ? dotColor : C.border}`,
-          backgroundColor: isCompleted ? '#16a34a' : 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {isCompleted && <span style={{ color: '#fff', fontSize: '0.55rem', fontWeight: 700, lineHeight: 1 }}>✓</span>}
-          {isNext && !isCompleted && <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: dotColor }} />}
-        </div>
-
-        {/* Day label + sub-info */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: '0.82rem', fontWeight: isNext ? 400 : 300, color: isNext ? C.text : C.textSecondary }}>
-            {cap(session.day.type)} Day
-          </span>
-          {isLift && exCount > 0 && (
-            <span style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, marginLeft: '0.35rem' }}>
-              · {exCount} ex
-            </span>
-          )}
-          {isRecover && session.day.cardioBlock?.durationMin && (
-            <span style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300, marginLeft: '0.35rem' }}>
-              · {session.day.cardioBlock.durationMin} min
-            </span>
-          )}
-        </div>
-
-        {/* Session number */}
-        <span style={{ fontSize: '0.65rem', color: C.textSecondary, fontWeight: 300, flexShrink: 0 }}>
-          #{session.sessionNum}
-        </span>
-
-        {/* Action buttons for the next upcoming session */}
-        {isNext && isLift && (
-          <button
-            onClick={() => startSession(session)}
-            style={{
-              padding: '0.28rem 0.7rem', borderRadius: '6px', border: 'none',
-              backgroundColor: TERRA, color: '#fff',
-              fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer',
-              fontFamily: FONTS.body, flexShrink: 0,
-            }}
-          >
-            Start →
-          </button>
-        )}
-        {isNext && isRecover && !isCompleted && (
-          <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
-            <button
-              onClick={() => setRecoverSheetDay(session.day)}
-              style={{
-                padding: '0.28rem 0.6rem', borderRadius: '6px',
-                border: `1px solid ${SAGE}`, backgroundColor: 'transparent', color: SAGE,
-                fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: FONTS.body,
-              }}
-            >
-              View →
-            </button>
-            <button
-              onClick={() => handleMarkComplete(session.sessionNum)}
-              disabled={markingComplete}
-              style={{
-                padding: '0.28rem 0.6rem', borderRadius: '6px',
-                border: '1px solid #16a34a', backgroundColor: 'transparent', color: '#16a34a',
-                fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: FONTS.body,
-                opacity: markingComplete ? 0.6 : 1,
-              }}
-            >
-              {markingComplete ? '…' : '✓'}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (!nextSession) {
-    return (
-      <div>
-        <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1rem', borderLeft: `3px solid #16a34a` }}>
-          <div style={{ ...cycleLabel, color: '#16a34a' }}>Current Cycle</div>
-          <div style={{ fontSize: '0.875rem', color: C.text, fontWeight: 400 }}>Kratos Split complete! All {sessions.length} sessions done.</div>
-        </div>
-        <button
-          onClick={() => setShowFullBlock(true)}
-          style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300, cursor: 'pointer', fontFamily: FONTS.body }}
-        >
-          View Full 12-Week Block →
-        </button>
-        {showFullBlock && <FullBlockOverlay cycle={cycle} onClose={() => setShowFullBlock(false)} />}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Next session summary card */}
-      <div style={{ ...card, padding: '1rem 1.25rem', marginBottom: '1.25rem', borderLeft: `3px solid ${TERRA}` }}>
-        <div style={cycleLabel}>Current Cycle</div>
-        <div style={{ fontSize: '0.875rem', fontWeight: 500, color: C.text, marginBottom: '0.15rem' }}>
-          Kratos Split — Session {nextSession.sessionNum} of {sessions.length}
-        </div>
-        <div style={{ fontSize: '0.72rem', color: C.textSecondary, fontWeight: 300 }}>
-          Week {nextSession.weekNum} · {cap(nextSession.day.type)} Day
-          {(nextSession.day.exercises ?? []).length > 0 ? ` · ${(nextSession.day.exercises ?? []).length} exercises` : ''}
-        </div>
-      </div>
-
-      {/* This Week */}
-      {thisWeekSessions.length > 0 && (
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={sectionLabel}>Current Week — Week {currentWeekIdx + 1}</div>
-          <div style={{ ...card, padding: '0 1rem' }}>
-            {thisWeekSessions.map(s => renderSessionRow(s))}
-          </div>
-        </div>
-      )}
-
-      {/* Next Week */}
-      {nextWeekSessions.length > 0 && (
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={sectionLabel}>Next Week — Week {currentWeekIdx + 2}</div>
-
-          <div style={{ ...card, padding: '0 1rem' }}>
-            {nextWeekSessions.map(s => renderSessionRow(s))}
-          </div>
-        </div>
-      )}
-
-      {/* View Full Block button */}
-      <button
-        onClick={() => setShowFullBlock(true)}
-        style={{
-          width: '100%', padding: '0.65rem', borderRadius: '8px',
-          border: `1px solid ${C.border}`, backgroundColor: 'transparent',
-          color: C.textSecondary, fontSize: '0.8rem', fontWeight: 300,
-          cursor: 'pointer', fontFamily: FONTS.body, transition: 'all 0.15s',
-        }}
-        onMouseOver={(e) => { e.currentTarget.style.borderColor = TERRA; e.currentTarget.style.color = TERRA; }}
-        onMouseOut={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; }}
-      >
-        View Full 12-Week Block →
-      </button>
-
-      {showFullBlock && <FullBlockOverlay cycle={cycle} onClose={() => setShowFullBlock(false)} />}
-      {recoverSheetDay && (
-        <RecoverySheet
-          day={recoverSheetDay}
-          onMarkComplete={() => handleMarkComplete(nextSession?.sessionNum)}
-          onClose={() => setRecoverSheetDay(null)}
-          marking={markingComplete}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── RecoverySheet — inline overlay for recover day routine ──────────────
-function RecoverySheet({ day, onMarkComplete, onClose, marking }) {
-  const cb = day.cardioBlock ?? {};
-  const stretches = day.stretches ?? [];
-
-  // Close on Escape
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 500, display: 'flex', alignItems: 'flex-end' }}>
-      <div
-        style={{
-          width: '100%', maxWidth: '640px', margin: '0 auto',
-          backgroundColor: C.bg, borderRadius: '16px 16px 0 0',
-          maxHeight: '82vh', overflowY: 'auto',
-          padding: '1.25rem 1.25rem 2.5rem',
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <div>
-            <div style={{ fontSize: '0.58rem', fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: FONTS.body, marginBottom: '0.2rem' }}>
-              Recovery Day
-            </div>
-            <div style={{ fontSize: '1rem', fontWeight: 400, color: C.text, textTransform: 'capitalize' }}>
-              {cb.modality ?? 'Active Recovery'}{cb.durationMin ? ` · ${cb.durationMin} min` : ''}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '1.5rem', lineHeight: 1, padding: '0.25rem' }}>×</button>
-        </div>
-
-        {/* Cardio block */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '0.62rem', fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: '0.625rem', fontFamily: FONTS.body }}>
-            Cardio Block
-          </div>
-          <div style={{ padding: '0.875rem 1rem', backgroundColor: '#EEF4EF', border: `1px solid ${SAGE}35`, borderRadius: '10px', borderLeft: `3px solid ${SAGE}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.375rem' }}>
-              <span style={{ fontWeight: 400, color: C.text, fontSize: '0.95rem', textTransform: 'capitalize' }}>{cb.modality ?? 'Cardio'}</span>
-              <span style={{ fontWeight: 500, color: SAGE, fontSize: '0.95rem', fontFamily: FONTS.heading }}>{cb.durationMin ?? 30} min</span>
-            </div>
-            <div style={{ fontSize: '0.78rem', color: C.textSecondary, fontWeight: 300, lineHeight: 1.55, marginBottom: '0.625rem' }}>
-              {cb.intensity ?? 'Zone 2 — conversational pace, 60–70% max HR'}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {[['Target Zone', 'Zone 2'], ['Max HR', '60–70%'], ['Effort', 'Conversational']].map(([label, val]) => (
-                <div key={label} style={{ padding: '0.25rem 0.625rem', backgroundColor: '#fff', borderRadius: '6px', border: `1px solid ${SAGE}25` }}>
-                  <div style={{ fontSize: '0.54rem', color: SAGE, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
-                  <div style={{ fontSize: '0.72rem', color: C.text, fontWeight: 400 }}>{val}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Mobility sequence */}
-        {stretches.length > 0 && (
-          <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.62rem', fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: '0.625rem', fontFamily: FONTS.body }}>
-              Mobility Sequence
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              {stretches.map((s, i) => (
-                <div key={i} style={{ padding: '0.625rem 0.875rem', backgroundColor: C.surface, borderRadius: '8px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-start', gap: '0.625rem' }}>
-                  <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#EEF4EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 600, color: SAGE, flexShrink: 0 }}>{i + 1}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.1rem' }}>
-                      <span style={{ fontWeight: 400, color: C.text, fontSize: '0.85rem' }}>{s.name}</span>
-                      <span style={{ fontSize: '0.7rem', color: SAGE, fontWeight: 400, flexShrink: 0 }}>{s.duration}</span>
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: C.textSecondary, fontWeight: 300, fontStyle: 'italic' }}>{s.cue}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Mark complete */}
-        <button
-          onClick={onMarkComplete}
-          disabled={marking}
-          style={{
-            width: '100%', padding: '0.875rem', borderRadius: '10px',
-            border: '1.5px solid #16a34a', backgroundColor: 'transparent',
-            color: '#16a34a', fontSize: '0.925rem', fontWeight: 500,
-            cursor: marking ? 'default' : 'pointer', fontFamily: FONTS.body,
-            opacity: marking ? 0.6 : 1, transition: 'opacity 0.15s',
-          }}
-        >
-          {marking ? 'Marking…' : '✓ Mark Recovery Complete'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Full-screen overlay wrapping KratosSplitViewer
-function FullBlockOverlay({ cycle, onClose }) {
-  // Close on Escape key
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: C.bg, zIndex: 400, overflowY: 'auto' }}>
-      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '1.25rem 1rem 4rem' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '0.62rem', fontWeight: 700, color: TERRA, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: FONTS.body }}>
-            Kratos Split — Full 12-Week Block
-          </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textSecondary, fontSize: '1.5rem', lineHeight: 1, padding: '0.25rem 0.5rem', fontFamily: FONTS.body }}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-        <KratosSplitViewer cycle={cycle} />
-      </div>
-    </div>
-  );
-}
-
-// ── HomeView ───────────────────────────────────────────────────────────
-function HomeView({ onStart, onLoadRoutine, onSaveRoutine, onStartKratosSession, onRemove, onAddExercise, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid, onSwap }) {
-  const { activeWorkout, isActive, updateTitle } = useActiveWorkout();
-  const activeExercises = activeWorkout?.activeExercises ?? [];
-  const workoutTitle    = activeWorkout?.title ?? '';
-  const startTime       = activeWorkout?.startTime ?? null;
-  const dayType         = activeWorkout?.dayType ?? null;
-  const isKratosSplit   = activeWorkout?.source === 'kratos_split';
-
-  const [tab, setTab] = useState(() => isActive ? 'workout' : 'cycle');
-  const [builderExercises, setBuilderExercises] = useState([]);
-  const [showAddPanel, setShowAddPanel] = useState(false);
-  const [showSaveForm, setShowSaveForm] = useState(false);
-  const [saveName, setSaveName] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  // Auto-switch to workout tab when a workout becomes active
-  useEffect(() => {
-    if (isActive) setTab('workout');
-  }, [isActive]);
-
-  // Auto-switch away from workout tab when workout ends
-  useEffect(() => {
-    if (!isActive && tab === 'workout') setTab('cycle');
-  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function addBuilderEx(exData) {
-    setBuilderExercises(prev => [...prev, { uid: crypto.randomUUID(), ex: exData, targetSets: 3, supersetGroup: null, supersetLabel: null }]);
-  }
-  function removeBuilderEx(uid) {
-    setBuilderExercises(prev => {
-      const removing = prev.find(i => i.uid === uid);
-      return prev.filter(i => i.uid !== uid).map(i => {
-        if (removing?.supersetGroup && i.supersetGroup === removing.supersetGroup)
-          return { ...i, supersetGroup: null, supersetLabel: null };
-        return i;
-      });
-    });
-  }
-  function addBuilderSet(uid) {
-    setBuilderExercises(prev => prev.map(i => i.uid === uid ? { ...i, targetSets: i.targetSets + 1 } : i));
-  }
-  function createBuilderSuperset(currentUid, newExData) {
-    const letter = nextSupersetGroup(builderExercises);
-    setBuilderExercises(prev => {
-      const idx = prev.findIndex(i => i.uid === currentUid);
-      if (idx === -1) return prev;
-      const result = prev.map(i => i.uid === currentUid ? { ...i, supersetGroup: letter, supersetLabel: letter + '1' } : i);
-      result.splice(idx + 1, 0, { uid: crypto.randomUUID(), ex: newExData, targetSets: result[idx].targetSets, supersetGroup: letter, supersetLabel: letter + '2' });
-      return [...result];
-    });
-  }
-
-  const TABS = [
-    { val: 'cycle',    label: 'Current Cycle' },
-    ...(isActive ? [{ val: 'workout', label: 'Active Workout', live: true }] : []),
-    { val: 'build',    label: 'Build My Own' },
-    { val: 'generate', label: 'Generate for Me' },
-    { val: 'routines', label: 'My Routines' },
-  ];
-
-  return (
-    <div>
-      {/* Tab bar */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surface, overflowX: 'auto', scrollbarWidth: 'none' }}>
-        <div style={{ padding: '0 1.25rem', display: 'flex', minWidth: 'max-content' }}>
-          {TABS.map(({ val, label, live }) => (
-            <button
-              key={val}
-              onClick={() => setTab(val)}
-              style={{
-                padding: '0.875rem 0.75rem', border: 'none',
-                borderBottom: `2px solid ${tab === val ? TERRA : 'transparent'}`,
-                backgroundColor: 'transparent',
-                color: live ? TERRA : (tab === val ? TERRA : C.textSecondary),
-                fontWeight: tab === val ? 400 : 300,
-                fontSize: '0.82rem', cursor: 'pointer',
-                transition: 'all 0.15s', fontFamily: FONTS.body,
-                whiteSpace: 'nowrap',
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-              }}
-            >
-              {live && (
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TERRA, flexShrink: 0, animation: 'aw-pulse 1.5s ease-in-out infinite' }} />
-              )}
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <style>{`@keyframes aw-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }`}</style>
-
-      {/* Current Cycle tab */}
-      {tab === 'cycle' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
-          <ActiveCycleSection onStartKratosSession={onStartKratosSession} />
-        </div>
-      )}
-
-      {/* Active Workout tab — only visible when a workout is in progress */}
-      {tab === 'workout' && isActive && (
-        <ActiveWorkoutView
-          activeExercises={activeExercises}
-          workoutTitle={workoutTitle}
-          setWorkoutTitle={updateTitle}
-          startTime={startTime}
-          onRemove={onRemove}
-          onCompleteSet={onCompleteSet}
-          onSaveAll={onSaveAll}
-          onAddSet={onAddSet}
-          onDeleteSet={onDeleteSet}
-          onCreateSuperset={onCreateSuperset}
-          onFinish={onFinish}
-          savingUid={savingUid}
-          onAddExercise={onAddExercise}
-          onSwap={onSwap}
-          dayType={dayType}
-          isKratosSplit={isKratosSplit}
-        />
-      )}
-
-      {/* Generate tab — keep mounted to preserve form state */}
-      <div style={{ display: tab === 'generate' ? 'block' : 'none' }}>
-        <RoutineGenerator />
-      </div>
-
-      {/* My Routines tab */}
-      {tab === 'routines' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
-          <SavedRoutinesTab onLoadRoutine={onLoadRoutine} />
-        </div>
-      )}
-
-      {/* Build My Own tab */}
-      {tab === 'build' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
-          {builderExercises.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: C.textSecondary }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#F5EDE6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: '1.5rem' }}>💪</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 300, marginBottom: '0.25rem', color: C.text }}>Build your workout</div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 300, marginBottom: '1.5rem', lineHeight: 1.6 }}>Add exercises below. You can save as a routine or start right away.</div>
-            </div>
-          ) : (
-            <div style={{ marginBottom: '0.75rem' }}>
-              {groupItems(builderExercises).map(group => {
-                if (group.type === 'single') {
-                  return <BuilderCard key={group.item.uid} item={group.item} onRemove={removeBuilderEx} onAddSet={addBuilderSet} onCreateSuperset={createBuilderSuperset} />;
-                }
-                return (
-                  <div key={group.group} style={{ borderLeft: `3px solid ${TERRA}`, borderRadius: '10px', paddingLeft: '0.625rem', marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                      <span style={{ fontSize: '0.62rem', fontWeight: 600, color: TERRA, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Superset {group.group}</span>
-                      <div style={{ flex: 1, height: '1px', backgroundColor: `${TERRA}30` }} />
-                    </div>
-                    {group.items.map(item => (
-                      <BuilderCard key={item.uid} item={item} onRemove={removeBuilderEx} onAddSet={addBuilderSet} onCreateSuperset={createBuilderSuperset} />
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Add Exercise button */}
-          <button
-            onClick={() => setShowAddPanel(true)}
-            style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: `1.5px dashed ${C.border}`, backgroundColor: 'transparent', color: C.textSecondary, fontSize: '0.875rem', cursor: 'pointer', fontFamily: FONTS.body, fontWeight: 300, marginBottom: '1rem' }}
-          >
-            + Add Exercise
-          </button>
-
-          {/* CTAs */}
-          {builderExercises.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              {showSaveForm ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input
-                      value={saveName}
-                      onChange={e => setSaveName(e.target.value)}
-                      placeholder="Routine name…"
-                      autoFocus
-                      style={{ flex: 1, padding: '0.65rem 0.75rem', borderRadius: '8px', border: `1.5px solid ${C.border}`, backgroundColor: C.bg, color: C.text, fontSize: '1rem', fontFamily: FONTS.body, outline: 'none' }}
-                    />
-                    <button onClick={() => { setShowSaveForm(false); setSaveName(''); }} style={{ padding: '0.65rem 0.5rem', border: 'none', background: 'none', color: C.textSecondary, cursor: 'pointer', fontFamily: FONTS.body, flexShrink: 0 }}>✕</button>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!saveName.trim()) return;
-                      setSaving(true);
-                      const ok = await onSaveRoutine(builderExercises, saveName);
-                      setSaving(false);
-                      if (ok !== false) { setShowSaveForm(false); setSaveName(''); setBuilderExercises([]); setTab('routines'); }
-                    }}
-                    style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: `1.5px solid ${C.border}`, backgroundColor: 'transparent', color: C.text, fontWeight: 400, fontSize: '0.9rem', cursor: saving ? 'default' : 'pointer', fontFamily: FONTS.body, opacity: saving ? 0.6 : 1 }}
-                  >
-                    {saving ? 'Saving…' : 'Save to My Routines'}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setShowSaveForm(true); setSaveName(getDefaultTitle().replace(' · Workout', ' Routine')); }}
-                  style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: `1.5px solid ${C.border}`, backgroundColor: 'transparent', color: C.text, fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer', fontFamily: FONTS.body }}
-                >
-                  Save to My Routines
-                </button>
-              )}
-              <button
-                onClick={() => onStart(builderExercises)}
-                style={{ width: '100%', padding: '0.875rem', borderRadius: '10px', border: 'none', backgroundColor: TERRA, color: '#fff', fontWeight: 400, fontSize: '1rem', cursor: 'pointer', fontFamily: FONTS.body, boxShadow: '0 2px 12px rgba(194,98,42,0.25)' }}
-              >
-                Start Workout →
-              </button>
-            </div>
-          )}
-
-          {showAddPanel && (
-            <AddExercisePanel
-              onAdd={(exData) => { addBuilderEx(exData); setShowAddPanel(false); }}
-              onClose={() => setShowAddPanel(false)}
-            />
-          )}
-        </div>
-      )}
-
-    </div>
-  );
-}
-
 // ── ActiveWorkoutView ──────────────────────────────────────────────────
-function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, startTime, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onCreateSuperset, onFinish, savingUid, onAddExercise, onSwap, dayType, isKratosSplit }) {
+function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, startTime, onRemove, onCompleteSet, onSaveAll, onAddSet, onDeleteSet, onEditSet, onCreateSuperset, onFinish, savingUid, onAddExercise, onSwap, dayType, isKratosSplit }) {
   const [showPanel, setShowPanel] = useState(false);
 
   const groups = groupItems(activeExercises);
@@ -1946,7 +1428,7 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
         startTime={startTime}
         onFinish={onFinish}
       />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem 6rem', maxWidth: '640px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      <div className="active-workout-scroll" style={{ flex: 1, overflowY: 'auto', paddingTop: '1rem', paddingLeft: '1.25rem', paddingRight: '1.25rem', maxWidth: '640px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         {activeExercises.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: C.textSecondary }}>
             <div style={{ fontSize: '0.875rem', fontWeight: 300, marginBottom: '0.25rem' }}>No exercises yet.</div>
@@ -1964,6 +1446,7 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
                   onSaveAll={onSaveAll}
                   onAddSet={onAddSet}
                   onDeleteSet={onDeleteSet}
+                  onEditSet={onEditSet}
                   onCreateSuperset={onCreateSuperset}
                   savingUid={savingUid}
                   onSwap={onSwap}
@@ -1988,6 +1471,7 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
                     onSaveAll={onSaveAll}
                     onAddSet={onAddSet}
                     onDeleteSet={onDeleteSet}
+                    onEditSet={onEditSet}
                     onCreateSuperset={onCreateSuperset}
                     savingUid={savingUid}
                     onSwap={onSwap}
@@ -2002,8 +1486,8 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
       </div>
 
       {/* Sticky Add Exercise button */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
+      <div className="active-workout-add-btn-bar" style={{
+        position: 'fixed', left: 0, right: 0,
         padding: '0.875rem 1.25rem',
         backgroundColor: C.bg, borderTop: `1px solid ${C.border}`,
         display: 'flex', justifyContent: 'center',
@@ -2032,17 +1516,26 @@ function ActiveWorkoutView({ activeExercises, workoutTitle, setWorkoutTitle, sta
           onClose={() => setShowPanel(false)}
         />
       )}
+
+      <style>{`
+        .active-workout-add-btn-bar { bottom: 0; }
+        .active-workout-scroll { padding-bottom: 6rem; }
+        @media (max-width: 768px) {
+          .active-workout-add-btn-bar { bottom: 56px !important; }
+          .active-workout-scroll { padding-bottom: 9rem !important; }
+        }
+      `}</style>
     </div>
   );
 }
 
-// ── Main export ────────────────────────────────────────────────────────
+// ── Main export (Active Workout Page) ─────────────────────────────────
 export default function MyWorkout() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const {
     activeWorkout, isActive,
-    startWorkout, endWorkout,
+    endWorkout,
     updateActiveExercises, updateTitle,
   } = useActiveWorkout();
 
@@ -2053,71 +1546,8 @@ export default function MyWorkout() {
   const activeExercises = activeWorkout?.activeExercises ?? [];
   const workoutTitle    = activeWorkout?.title ?? '';
   const startTime       = activeWorkout?.startTime ?? null;
-
-  function handleStart(exercises = []) {
-    const exItems = exercises.map(ex => ({
-      ...ex,
-      logData: { sets: [] },
-      activeSets: 0,
-      supersetGroup: ex.supersetGroup ?? null,
-      supersetLabel: ex.supersetLabel ?? null,
-    }));
-    startWorkout({
-      title: getDefaultTitle(),
-      source: 'custom',
-      activeExercises: exItems,
-      cycleId: null,
-      weekNumber: 0,
-      dayType: 'custom',
-      weekIdx: null, dayIdx: null, sessionNum: null,
-    });
-  }
-
-  function handleStartKratosSession(data) {
-    startWorkout(data);
-  }
-
-  async function handleSaveRoutine(exercises, name) {
-    if (!user || !name.trim()) return false;
-    const exData = exercises.map(ex => ({
-      id: ex.ex.id, name: ex.ex.name, muscleGroup: ex.ex.muscleGroup,
-      equipment: ex.ex.equipment, trackingType: ex.ex.trackingType, defaultSets: ex.targetSets,
-    }));
-    const builderPayload = { user_id: user.id, title: name.trim(), exercises: exData };
-    console.log('[custom_routines] builder insert payload:', JSON.stringify(builderPayload, null, 2));
-    const { error } = await supabase.from('custom_routines').insert(builderPayload);
-    if (error) {
-      console.error('[custom_routines] builder insert error:', {
-        message: error.message,
-        code:    error.code,
-        details: error.details,
-        hint:    error.hint,
-      });
-    }
-    return !error;
-  }
-
-  function handleLoadRoutine(routine) {
-    const exercises = (routine.exercises ?? []).map((ex) => ({
-      uid:          crypto.randomUUID(),
-      ex:           { id: ex.id ?? null, name: ex.name, muscleGroup: ex.muscleGroup ?? '', equipment: ex.equipment ?? '', trackingType: ex.trackingType ?? 'reps' },
-      targetSets:   ex.defaultSets ?? 3,
-      logData:      { sets: [] },
-      activeSets:   0,
-      supersetGroup: null,
-      supersetLabel: null,
-    }));
-    startWorkout({
-      title: routine.title ?? routine.name ?? '',
-      source: 'saved_routine',
-      activeExercises: exercises,
-      cycleId: null,
-      weekNumber: 0,
-      dayType: 'custom',
-      weekIdx: null, dayIdx: null, sessionNum: null,
-    });
-    supabase.from('custom_routines').update({ last_used_at: new Date().toISOString() }).eq('id', routine.id).then(() => {});
-  }
+  const dayType         = activeWorkout?.dayType ?? null;
+  const isKratosSplit   = activeWorkout?.source === 'kratos_split';
 
   function handleAddExercise(exData) {
     updateActiveExercises([
@@ -2276,6 +1706,20 @@ export default function MyWorkout() {
     return true;
   }
 
+  async function handleEditSet(uid, setRecord, data) {
+    if (!user || !setRecord.db_id) return false;
+    const item = activeExercises.find(i => i.uid === uid);
+    if (!item) return false;
+    const payload = buildPayload(item.ex, setRecord.set_number, data, item.supersetGroup ?? null);
+    const { error } = await supabase.from('workout_logs').update(payload).eq('id', setRecord.db_id);
+    if (error) { console.error('[workout_logs] editSet error:', error); return false; }
+    const newRecord = { ...buildSetRecord(item.ex, setRecord.set_number, data), db_id: setRecord.db_id, saved: true };
+    updateActiveExercises(activeExercises.map(i =>
+      i.uid !== uid ? i : { ...i, logData: { sets: i.logData.sets.map(s => s === setRecord ? newRecord : s) } }
+    ));
+    return true;
+  }
+
   async function handleSaveExit() {
     // If this was a Kratos Split session, mark the day complete
     if (activeWorkout?.source === 'kratos_split' && activeWorkout?.cycleId && activeWorkout?.sessionNum) {
@@ -2305,25 +1749,58 @@ export default function MyWorkout() {
     setShowFinish(false);
   }
 
+  if (!isActive) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: C.bg }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '3.5rem 1.5rem', textAlign: 'center' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#F5EDE6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', fontSize: '2rem' }}>🏋️</div>
+          <div style={{ fontFamily: FONTS.heading, fontStyle: 'italic', fontSize: '1.45rem', fontWeight: 400, color: C.text, marginBottom: '0.5rem' }}>
+            No workout in progress.
+          </div>
+          <div style={{ fontSize: '0.82rem', color: C.textSecondary, fontWeight: 300, marginBottom: '2rem', lineHeight: 1.6 }}>
+            Start a new workout to begin logging your session.
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => navigate('/build')}
+              style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', backgroundColor: TERRA, color: '#fff', fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer', fontFamily: FONTS.body }}
+            >
+              Build Workout →
+            </button>
+            <button
+              onClick={() => navigate('/generate')}
+              style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: `1.5px solid ${C.border}`, backgroundColor: 'transparent', color: C.text, fontWeight: 400, fontSize: '0.9rem', cursor: 'pointer', fontFamily: FONTS.body }}
+            >
+              Generate Workout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: C.bg }}>
-      <HomeView
-        onStart={handleStart}
-        onLoadRoutine={handleLoadRoutine}
-        onSaveRoutine={handleSaveRoutine}
-        onStartKratosSession={handleStartKratosSession}
+      <ActiveWorkoutView
+        activeExercises={activeExercises}
+        workoutTitle={workoutTitle}
+        setWorkoutTitle={updateTitle}
+        startTime={startTime}
         onRemove={handleRemove}
-        onAddExercise={handleAddExercise}
         onCompleteSet={handleCompleteSet}
         onSaveAll={handleSaveAll}
         onAddSet={handleAddSet}
         onDeleteSet={handleDeleteSet}
+        onEditSet={handleEditSet}
         onCreateSuperset={handleCreateSuperset}
         onFinish={() => setShowFinish(true)}
         savingUid={savingUid}
+        onAddExercise={handleAddExercise}
         onSwap={handleSwapExercise}
+        dayType={dayType}
+        isKratosSplit={isKratosSplit}
       />
-      {isActive && showFinish && (
+      {showFinish && (
         <FinishModal
           activeExercises={activeExercises}
           startTime={startTime}

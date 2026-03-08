@@ -2,7 +2,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  Home, Dumbbell, Users, Menu, X, Zap, ClipboardList, Settings, BookOpen,
+  Home, Dumbbell, Users, Menu, X, Zap, ClipboardList, Settings, BookOpen, Wand2, BookMarked,
 } from 'lucide-react';
 import { C, FONTS } from '../theme';
 
@@ -55,13 +55,18 @@ function SidebarContent({ onClose }) {
 
       {/* Nav links */}
       <nav style={{ flex: 1, padding: '0 0.625rem', overflowY: 'auto' }}>
+        {/* Primary */}
         <NavItem to="/" label="Home" icon={Home} end onClick={onClose} />
-        <NavItem to="/train" label="Train" icon={Dumbbell} onClick={onClose} />
-        <NavItem to="/library" label="Exercise Library" icon={BookOpen} onClick={onClose} />
-
-        <NavItem to="/kratos" label="Kratos Split" icon={Zap} onClick={onClose} />
-
+        <NavItem to="/build" label="Build" icon={Dumbbell} onClick={onClose} />
+        <NavItem to="/generate" label="Generate" icon={Wand2} onClick={onClose} />
+        <NavItem to="/routines" label="My Routines" icon={BookMarked} onClick={onClose} />
         <NavItem to="/log" label="Workout Log" icon={ClipboardList} onClick={onClose} />
+
+        {/* Secondary */}
+        <div style={{ height: '1px', backgroundColor: C.border, margin: '0.625rem 0.125rem' }} />
+        <div style={{ fontSize: '0.58rem', fontWeight: 600, color: C.textSecondary, textTransform: 'uppercase', letterSpacing: '0.09em', padding: '0 0.75rem', marginBottom: '0.2rem', fontFamily: FONTS.body }}>More</div>
+        <NavItem to="/kratos" label="Kratos Split" icon={Zap} onClick={onClose} />
+        <NavItem to="/library" label="Exercise Library" icon={BookOpen} onClick={onClose} />
         <NavItem to="/community" label="Community" icon={Users} onClick={onClose} />
       </nav>
 

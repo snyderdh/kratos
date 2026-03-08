@@ -24,6 +24,21 @@ const PHASE_COLORS = {
   taper:      '#9333ea',
 };
 
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+const TIME_EX_IDS     = new Set([36, 114, 130, 163, 167, 169, 170]);
+const WEIGHTED_BW_IDS = new Set([10, 31, 93, 107, 108]);
+
+function getTrackingType(ex) {
+  if (!ex) return 'reps';
+  const explicit = ex.trackingType;
+  if (explicit && explicit !== 'reps') return explicit;
+  if (ex.id && TIME_EX_IDS.has(ex.id))     return 'time';
+  if (ex.id && WEIGHTED_BW_IDS.has(ex.id)) return 'weighted_bodyweight';
+  if (ex.equipment === 'bodyweight')         return 'bodyweight';
+  return 'reps';
+}
+
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -115,7 +130,7 @@ export default function Home() {
   const navigate = useNavigate();
   const name = profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Athlete';
 
-  const { activeWorkout, isActive, loggedSetCount, endWorkout } = useActiveWorkout();
+  const { activeWorkout, isActive, loggedSetCount, endWorkout, startWorkout } = useActiveWorkout();
   const [elapsed,       setElapsed]      = useState(0);
   const [showAbandon,   setShowAbandon]  = useState(false);
   const [abandonBusy,   setAbandonBusy]  = useState(false);
@@ -222,13 +237,40 @@ export default function Home() {
 
   function beginWorkout() {
     if (!nextSession) return;
-    navigate('/kratos', {
-      state: {
-        tab: 'cycles',
-        autoLoad: activeCycle.id,
-        autoDay:  { weekIdx: nextSession.weekIdx, dayIdx: nextSession.dayIdx },
-      },
+    const d = nextSession.day;
+    // Recover days: navigate to Kratos for the recovery plan view
+    if (d.type === 'recover') {
+      navigate('/kratos', {
+        state: {
+          tab: 'cycles',
+          autoLoad: activeCycle.id,
+          autoDay:  { weekIdx: nextSession.weekIdx, dayIdx: nextSession.dayIdx },
+        },
+      });
+      return;
+    }
+    // Lift days: start workout immediately and navigate to /active
+    const exItems = (d.exercises ?? []).map(ex => ({
+      uid:           crypto.randomUUID(),
+      ex:            { id: ex.id ?? null, name: ex.name, muscleGroup: ex.muscleGroup ?? '', equipment: ex.equipment ?? '', trackingType: getTrackingType(ex) },
+      targetSets:    ex.sets ?? 3,
+      logData:       { sets: [] },
+      activeSets:    0,
+      supersetGroup: null,
+      supersetLabel: null,
+    }));
+    startWorkout({
+      title:           `Week ${nextSession.weekNum} · ${cap(d.type)} Day`,
+      source:          'kratos_split',
+      activeExercises: exItems,
+      cycleId:         activeCycle.id,
+      weekNumber:      nextSession.weekNum,
+      dayType:         d.type,
+      weekIdx:         nextSession.weekIdx,
+      dayIdx:          nextSession.dayIdx,
+      sessionNum:      nextSession.sessionNum,
     });
+    navigate('/active');
   }
 
   // ── Loading skeleton ──────────────────────────────────────────────────
@@ -301,7 +343,7 @@ export default function Home() {
           borderLeft: `3px solid ${TERRA}`,
           cursor: 'pointer',
         }}
-          onClick={() => navigate('/train')}
+          onClick={() => navigate('/active')}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -640,7 +682,7 @@ export default function Home() {
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
-              onClick={() => navigate('/kratos')}
+              onClick={() => navigate('/build')}
               style={{
                 flex: '1 1 140px',
                 padding: '0.75rem 1rem',
@@ -657,10 +699,10 @@ export default function Home() {
               onMouseOver={(e) => { e.currentTarget.style.opacity = '0.87'; }}
               onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
             >
-              Begin Kratos Split
+              Build Workout →
             </button>
             <button
-              onClick={() => navigate('/kratos', { state: { tab: 'generate' } })}
+              onClick={() => navigate('/generate')}
               style={{
                 flex: '1 1 140px',
                 padding: '0.75rem 1rem',
@@ -677,10 +719,66 @@ export default function Home() {
               onMouseOver={(e) => { e.currentTarget.style.borderColor = C.text; }}
               onMouseOut={(e)  => { e.currentTarget.style.borderColor = C.border; }}
             >
-              Build a Routine
+              Generate Workout
+            </button>
+            <button
+              onClick={() => navigate('/kratos')}
+              style={{
+                flex: '1 1 140px',
+                padding: '0.75rem 1rem',
+                backgroundColor: 'transparent',
+                color: C.text,
+                border: `1.5px solid ${C.border}`,
+                borderRadius: '9px',
+                fontSize: '0.875rem',
+                fontWeight: 400,
+                fontFamily: FONTS.body,
+                cursor: 'pointer',
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.borderColor = C.text; }}
+              onMouseOut={(e)  => { e.currentTarget.style.borderColor = C.border; }}
+            >
+              Kratos Split
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Quick Start ───────────────────────────────────────────────── */}
+      {!isActive && (
+        <>
+          <div style={editorialLabel}>Quick Start</div>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+            <button
+              onClick={() => navigate('/build')}
+              style={{
+                flex: '1 1 140px', padding: '0.875rem 1rem',
+                backgroundColor: TERRA, color: '#fff', border: 'none',
+                borderRadius: '10px', fontSize: '0.875rem', fontWeight: 500,
+                fontFamily: FONTS.body, cursor: 'pointer', transition: 'opacity 0.15s',
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.opacity = '0.87'; }}
+              onMouseOut={(e)  => { e.currentTarget.style.opacity = '1'; }}
+            >
+              Build Workout →
+            </button>
+            <button
+              onClick={() => navigate('/generate')}
+              style={{
+                flex: '1 1 140px', padding: '0.875rem 1rem',
+                backgroundColor: 'transparent', color: C.text,
+                border: `1.5px solid ${C.border}`, borderRadius: '10px',
+                fontSize: '0.875rem', fontWeight: 400, fontFamily: FONTS.body,
+                cursor: 'pointer', transition: 'border-color 0.15s',
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.borderColor = C.text; }}
+              onMouseOut={(e)  => { e.currentTarget.style.borderColor = C.border; }}
+            >
+              Generate Workout
+            </button>
+          </div>
+        </>
       )}
 
     </div>

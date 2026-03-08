@@ -215,12 +215,13 @@ function sortPool(pool, primaryGoal) {
 }
 
 // ── Pick one exercise, compound-preferred for strength/power ─────────────
-function pickOne(muscleGroup, availableEquipment, primaryGoal, excludeIds = [], filterFn = null) {
+function pickOne(muscleGroup, availableEquipment, primaryGoal, excludeIds = [], filterFn = null, excludeNames = []) {
   const pool = exercises.filter(
     (ex) =>
       ex.muscleGroup === muscleGroup &&
       availableEquipment.includes(ex.equipment) &&
       !excludeIds.includes(ex.id) &&
+      !excludeNames.includes(ex.name) &&
       (filterFn ? filterFn(ex) : true)
   );
   if (pool.length === 0) return null;
@@ -234,57 +235,61 @@ function pickOne(muscleGroup, availableEquipment, primaryGoal, excludeIds = [], 
 }
 
 // ── Guaranteed coverage pick — ensures sub-group balance ─────────────────
-function pickGuaranteed(targetMuscles, availableEquipment, primaryGoal, excludeIds = []) {
+function pickGuaranteed(targetMuscles, availableEquipment, primaryGoal, excludeIds = [], excludeNames = []) {
   const guaranteed = [];
-  const usedIds = [...excludeIds];
+  const usedIds   = [...excludeIds];
+  const usedNames = [...excludeNames];
+
+  function claimEx(ex) { usedIds.push(ex.id); usedNames.push(ex.name); }
 
   for (const mg of targetMuscles) {
     if (mg === 'arms') {
       const bicep = pickOne('arms', availableEquipment, primaryGoal, usedIds,
-        (ex) => classifyArm(ex.name) === 'bicep');
-      if (bicep) { guaranteed.push(bicep); usedIds.push(bicep.id); }
+        (ex) => classifyArm(ex.name) === 'bicep', usedNames);
+      if (bicep) { guaranteed.push(bicep); claimEx(bicep); }
 
       const tricep = pickOne('arms', availableEquipment, primaryGoal, usedIds,
-        (ex) => classifyArm(ex.name) === 'tricep');
-      if (tricep) { guaranteed.push(tricep); usedIds.push(tricep.id); }
+        (ex) => classifyArm(ex.name) === 'tricep', usedNames);
+      if (tricep) { guaranteed.push(tricep); claimEx(tricep); }
 
     } else if (mg === 'shoulders') {
       const press = pickOne('shoulders', availableEquipment, primaryGoal, usedIds,
-        (ex) => classifyShoulder(ex.name) === 'press');
-      if (press) { guaranteed.push(press); usedIds.push(press.id); }
+        (ex) => classifyShoulder(ex.name) === 'press', usedNames);
+      if (press) { guaranteed.push(press); claimEx(press); }
 
       const lateral = pickOne('shoulders', availableEquipment, primaryGoal, usedIds,
-        (ex) => classifyShoulder(ex.name) === 'lateral');
-      if (lateral) { guaranteed.push(lateral); usedIds.push(lateral.id); }
+        (ex) => classifyShoulder(ex.name) === 'lateral', usedNames);
+      if (lateral) { guaranteed.push(lateral); claimEx(lateral); }
 
     } else if (mg === 'core') {
       const antiExt = pickOne('core', availableEquipment, primaryGoal, usedIds,
-        (ex) => classifyCore(ex.name) === 'anti-extension');
-      if (antiExt) { guaranteed.push(antiExt); usedIds.push(antiExt.id); }
+        (ex) => classifyCore(ex.name) === 'anti-extension', usedNames);
+      if (antiExt) { guaranteed.push(antiExt); claimEx(antiExt); }
 
       const flexRot = pickOne('core', availableEquipment, primaryGoal, usedIds,
-        (ex) => classifyCore(ex.name) === 'flexion-rotation');
-      if (flexRot) { guaranteed.push(flexRot); usedIds.push(flexRot.id); }
+        (ex) => classifyCore(ex.name) === 'flexion-rotation', usedNames);
+      if (flexRot) { guaranteed.push(flexRot); claimEx(flexRot); }
 
     } else {
       // chest / back / legs — one compound-preferred pick
-      const ex = pickOne(mg, availableEquipment, primaryGoal, usedIds);
-      if (ex) { guaranteed.push(ex); usedIds.push(ex.id); }
+      const ex = pickOne(mg, availableEquipment, primaryGoal, usedIds, null, usedNames);
+      if (ex) { guaranteed.push(ex); claimEx(ex); }
     }
   }
 
-  return { guaranteed, usedIds };
+  return { guaranteed, usedIds, usedNames };
 }
 
 // ── Supplemental picks — fills remaining slots, compound-first ────────────
-function pickSupplemental(targetMuscles, availableEquipment, primaryGoal, count, excludeIds = []) {
+function pickSupplemental(targetMuscles, availableEquipment, primaryGoal, count, excludeIds = [], excludeNames = []) {
   if (count <= 0) return [];
 
   const pool = exercises.filter(
     (ex) =>
       targetMuscles.includes(ex.muscleGroup) &&
       availableEquipment.includes(ex.equipment) &&
-      !excludeIds.includes(ex.id)
+      !excludeIds.includes(ex.id) &&
+      !excludeNames.includes(ex.name)
   );
 
   const compounds = pool.filter((ex) => isCompoundExercise(ex.name));
@@ -367,12 +372,12 @@ export function generateSingleDayRoutine({ goals, equipment, muscleGroups, exerc
   const primaryGoal = mainGoals[0];
 
   // Step 1: guaranteed sub-group coverage
-  const { guaranteed, usedIds } = pickGuaranteed(muscleGroups, equipment, primaryGoal, excludeIds);
+  const { guaranteed, usedIds, usedNames } = pickGuaranteed(muscleGroups, equipment, primaryGoal, excludeIds);
 
   // Step 2: supplemental exercises for remaining slots
   const totalCount = Math.max(exerciseCount, guaranteed.length);
   const supplemental = pickSupplemental(
-    muscleGroups, equipment, primaryGoal, totalCount - guaranteed.length, usedIds
+    muscleGroups, equipment, primaryGoal, totalCount - guaranteed.length, usedIds, usedNames
   );
   const supplementalIds = supplemental.map((ex) => ex.id);
 
@@ -598,9 +603,19 @@ export function generateAdvancedRoutine({
   const blendDescription = getBlendDescription(goals);
   const primaryGoal = goals.filter((g) => g !== 'mobility')[0] || 'hypertrophy';
 
-  const usedIds = new Set(excludedExerciseIds.map(String));
+  const usedIds          = new Set(excludedExerciseIds.map(String));
+  const usedExerciseNames = new Set();
 
   const nonCoreMuscles = targetMuscles.filter((m) => m !== 'core');
+
+  // Single source of truth: both ID and name must be free
+  function isAvailable(ex) {
+    return !usedIds.has(String(ex.id)) && !usedExerciseNames.has(ex.name);
+  }
+  function claim(ex) {
+    usedIds.add(String(ex.id));
+    usedExerciseNames.add(ex.name);
+  }
 
   function pickBest(pool) {
     if (pool.length === 0) return null;
@@ -612,7 +627,7 @@ export function generateAdvancedRoutine({
   for (const mg of nonCoreMuscles) {
     if (phase2Ex) break;
     const pool = exercises.filter(
-      (ex) => ex.muscleGroup === mg && ex.tier === 1 && equipment.includes(ex.equipment) && !usedIds.has(String(ex.id))
+      (ex) => ex.muscleGroup === mg && ex.tier === 1 && equipment.includes(ex.equipment) && isAvailable(ex)
     );
     if (pool.length > 0) phase2Ex = pickBest(pool);
   }
@@ -620,7 +635,7 @@ export function generateAdvancedRoutine({
     for (const mg of nonCoreMuscles) {
       if (phase2Ex) break;
       const pool = exercises.filter(
-        (ex) => ex.muscleGroup === mg && ex.tier === 2 && equipment.includes(ex.equipment) && !usedIds.has(String(ex.id))
+        (ex) => ex.muscleGroup === mg && ex.tier === 2 && equipment.includes(ex.equipment) && isAvailable(ex)
       );
       if (pool.length > 0) phase2Ex = pickBest(pool);
     }
@@ -628,7 +643,7 @@ export function generateAdvancedRoutine({
 
   const phase2Exercises = [];
   if (phase2Ex) {
-    usedIds.add(String(phase2Ex.id));
+    claim(phase2Ex);
     const maxSets = philosophyConfig.sets[philosophyConfig.sets.length - 1];
     const reps = `${philosophyConfig.reps[0]}-${philosophyConfig.reps[1]}`;
     const setStructure = philosophyConfig.setStructure === 'pyramid' ? 'pyramid' : 'straight';
@@ -654,11 +669,11 @@ export function generateAdvancedRoutine({
   for (const mg of phase3Candidates) {
     if (phase3Exercises.length >= 2) break;
     const pool = exercises.filter(
-      (ex) => ex.muscleGroup === mg && ex.tier === 2 && equipment.includes(ex.equipment) && !usedIds.has(String(ex.id))
+      (ex) => ex.muscleGroup === mg && ex.tier === 2 && equipment.includes(ex.equipment) && isAvailable(ex)
     );
     if (pool.length > 0) {
       const ex = pickBest(pool);
-      usedIds.add(String(ex.id));
+      claim(ex);
       const maxSets = philosophyConfig.sets[philosophyConfig.sets.length - 1];
       const secMin = Math.min(philosophyConfig.reps[0] + 2, 15);
       const secMax = Math.min(philosophyConfig.reps[1] + 3, 20);
@@ -701,14 +716,14 @@ export function generateAdvancedRoutine({
   if (targetMuscles.includes('arms')) {
     const bicepPool = exercises.filter(
       (ex) => ex.muscleGroup === 'arms' && ex.tier === 3 && equipment.includes(ex.equipment) &&
-        !usedIds.has(String(ex.id)) && classifyArm(ex.name) === 'bicep'
+        isAvailable(ex) && classifyArm(ex.name) === 'bicep'
     );
     const tricepPool = exercises.filter(
       (ex) => ex.muscleGroup === 'arms' && ex.tier === 3 && equipment.includes(ex.equipment) &&
-        !usedIds.has(String(ex.id)) && classifyArm(ex.name) === 'tricep'
+        isAvailable(ex) && classifyArm(ex.name) === 'tricep'
     );
-    if (bicepPool.length > 0) { const ex = pickBest(bicepPool); usedIds.add(String(ex.id)); addAccessory(ex); }
-    if (tricepPool.length > 0) { const ex = pickBest(tricepPool); usedIds.add(String(ex.id)); addAccessory(ex); }
+    if (bicepPool.length > 0) { const ex = pickBest(bicepPool); claim(ex); addAccessory(ex); }
+    if (tricepPool.length > 0) { const ex = pickBest(tricepPool); claim(ex); addAccessory(ex); }
   }
 
   // Guaranteed: shoulders → 1 press + 1 lateral
@@ -716,17 +731,17 @@ export function generateAdvancedRoutine({
     const pressPool = [3, 2].flatMap((tier) =>
       exercises.filter(
         (ex) => ex.muscleGroup === 'shoulders' && ex.tier === tier && equipment.includes(ex.equipment) &&
-          !usedIds.has(String(ex.id)) && classifyShoulder(ex.name) === 'press'
+          isAvailable(ex) && classifyShoulder(ex.name) === 'press'
       )
     );
     const lateralPool = exercises.filter(
       (ex) => ex.muscleGroup === 'shoulders' && (ex.tier === 3 || ex.tier === 2) &&
-        equipment.includes(ex.equipment) && !usedIds.has(String(ex.id)) &&
+        equipment.includes(ex.equipment) && isAvailable(ex) &&
         classifyShoulder(ex.name) === 'lateral'
     );
-    if (pressPool.length > 0) { const ex = pickBest(pressPool); usedIds.add(String(ex.id)); addAccessory(ex); }
+    if (pressPool.length > 0) { const ex = pickBest(pressPool); claim(ex); addAccessory(ex); }
     if (lateralPool.length > 0 && phase4Exercises.length < 4) {
-      const ex = pickBest(lateralPool); usedIds.add(String(ex.id)); addAccessory(ex);
+      const ex = pickBest(lateralPool); claim(ex); addAccessory(ex);
     }
   }
 
@@ -734,11 +749,11 @@ export function generateAdvancedRoutine({
   for (const mg of nonCoreMuscles) {
     if (phase4Exercises.length >= 4) break;
     const pool = exercises.filter(
-      (ex) => ex.muscleGroup === mg && ex.tier === 3 && equipment.includes(ex.equipment) && !usedIds.has(String(ex.id))
+      (ex) => ex.muscleGroup === mg && ex.tier === 3 && equipment.includes(ex.equipment) && isAvailable(ex)
     );
     if (pool.length > 0) {
       const ex = shuffleArray(pool)[0];
-      usedIds.add(String(ex.id));
+      claim(ex);
       addAccessory(ex);
     }
   }
@@ -754,19 +769,38 @@ export function generateAdvancedRoutine({
   }
 
   // ── Phase 5: Intensifier / Drop Set ───────────────────────────────────
+  // Pick a fresh exercise (never reuse one from phases 2–4) for the drop set
   let phase5Exercise = null;
-  if (phase4Exercises.length > 0) {
-    const base = phase4Exercises[phase4Exercises.length - 1];
-    phase5Exercise = {
-      ...base,
-      id: `${base.id}-drop`,
-      phaseId: 'intensifier',
-      setStructure: 'drop',
-      supersetGroup: null,
-      supersetLabel: null,
-      dropSetNote: 'Drop 20% after last rep → continue to failure',
-      targetRPE: 10,
-    };
+  {
+    // Prefer the same muscle group as the last accessory exercise for metabolic continuity
+    const lastP4Muscle = phase4Exercises.length > 0
+      ? phase4Exercises[phase4Exercises.length - 1].muscleGroup
+      : null;
+
+    const intensifierPool = exercises.filter(
+      (ex) => nonCoreMuscles.includes(ex.muscleGroup) && equipment.includes(ex.equipment) && isAvailable(ex)
+    );
+
+    // Try same-muscle first, then fall back to any available
+    const intensifierBase = intensifierPool.find((ex) => ex.muscleGroup === lastP4Muscle)
+      ?? intensifierPool[0];
+
+    if (intensifierBase) {
+      claim(intensifierBase);
+      phase5Exercise = {
+        ...intensifierBase,
+        phaseId: 'intensifier',
+        sets: 2,
+        reps: acc4Reps,
+        rest: acc4Rest,
+        targetRPE: 10,
+        setStructure: 'drop',
+        supersetGroup: null,
+        supersetLabel: null,
+        dropSetNote: 'Drop 20% after last rep → continue to failure',
+        movementCue: MOVEMENT_CUES[intensifierBase.movementPattern] || MOVEMENT_CUES.isolation,
+      };
+    }
   }
 
   // ── Phase 6: Core ─────────────────────────────────────────────────────
@@ -775,21 +809,21 @@ export function generateAdvancedRoutine({
 
   const antiExtPool = exercises.filter(
     (ex) => ex.muscleGroup === 'core' && coreEquip.includes(ex.equipment) &&
-      !usedIds.has(String(ex.id)) && classifyCore(ex.name) === 'anti-extension'
+      isAvailable(ex) && classifyCore(ex.name) === 'anti-extension'
   );
   const flexRotPool = exercises.filter(
     (ex) => ex.muscleGroup === 'core' && coreEquip.includes(ex.equipment) &&
-      !usedIds.has(String(ex.id)) && classifyCore(ex.name) === 'flexion-rotation'
+      isAvailable(ex) && classifyCore(ex.name) === 'flexion-rotation'
   );
 
   if (antiExtPool.length > 0) {
     const ex = pickBest(antiExtPool);
-    usedIds.add(String(ex.id));
+    claim(ex);
     phase6Exercises.push({ ...ex, phaseId: 'core', sets: 3, reps: '30-45s', rest: '60s', targetRPE: 6, setStructure: 'straight', movementCue: MOVEMENT_CUES.isometric });
   }
   if (flexRotPool.length > 0) {
     const ex = pickBest(flexRotPool);
-    usedIds.add(String(ex.id));
+    claim(ex);
     phase6Exercises.push({ ...ex, phaseId: 'core', sets: 3, reps: '15-20', rest: '60s', targetRPE: 6.5, setStructure: 'straight', movementCue: MOVEMENT_CUES.isometric });
   }
 

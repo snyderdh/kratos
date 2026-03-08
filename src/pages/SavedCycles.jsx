@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import CycleViewer from '../components/CycleViewer';
@@ -12,15 +13,23 @@ function getSplitLabel(split) {
 
 export default function SavedCycles() {
   const { user } = useAuth();
+  const location = useLocation();
   const [cycles, setCycles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCycle, setActiveCycle] = useState(null);
   const [loadingCycle, setLoadingCycle] = useState(null);
+  const [autoDay, setAutoDay] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchCycles();
-  }, []);
+    // Auto-load a specific cycle + day when navigating from the home dashboard
+    const { autoLoad, autoDay: ad } = location.state ?? {};
+    if (autoLoad) {
+      if (ad) setAutoDay(ad);
+      handleView(autoLoad);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchCycles() {
     setLoading(true);
@@ -86,7 +95,7 @@ export default function SavedCycles() {
             Saved {new Date(activeCycle.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
           {activeCycle.split === 'kratos_split'
-            ? <KratosSplitViewer cycle={activeCycle} />
+            ? <KratosSplitViewer cycle={activeCycle} initialDay={autoDay} />
             : <CycleViewer cycle={activeCycle} />
           }
         </div>

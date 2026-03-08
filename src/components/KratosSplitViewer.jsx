@@ -1275,7 +1275,7 @@ function DayModal({ cycle, weekIdx, dayIdx, completedDays, onToggleComplete, onC
 }
 
 // ── Main export ────────────────────────────────────────────────────────
-export default function KratosSplitViewer({ cycle }) {
+export default function KratosSplitViewer({ cycle, initialDay }) {
   const storageKey  = `kratos_complete_${cycle.id}`;
   const isMobile    = useIsMobile();
   const weekRowRefs = useRef({});
@@ -1285,8 +1285,8 @@ export default function KratosSplitViewer({ cycle }) {
     catch { return {}; }
   });
 
-  const [modalWeekIdx, setModalWeekIdx] = useState(null);
-  const [modalDayIdx,  setModalDayIdx]  = useState(null);
+  const [modalWeekIdx, setModalWeekIdx] = useState(initialDay?.weekIdx ?? null);
+  const [modalDayIdx,  setModalDayIdx]  = useState(initialDay?.dayIdx  ?? null);
   const [mobileWeek,   setMobileWeek]   = useState(0);
 
   // ── Current week detection (real-date based) ───────────────────────
